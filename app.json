@@ -1,0 +1,14 @@
+{
+  "name": "homeboard",
+  "description": "FastAPI home dashboard",
+  "env": {
+    "PUBLIC_API_KEY": {
+      "description": "공공데이터 API KEY",
+      "required": true
+    },
+    "ACCESS_KEY": {
+      "description": "접근 보호용 키(설정 하지 않는 경우 모두 접근 허용)",
+      "required": false
+    }
+  }
+}
