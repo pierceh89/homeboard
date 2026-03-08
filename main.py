@@ -1,13 +1,14 @@
-from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+from threading import Lock
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from api import get_bus_arrivals
-from weather import WeatherForecastSlot, get_weather
+from weather import WeatherForecastSlot, WeatherResponse, get_weather
 
 import json
 
@@ -20,6 +21,17 @@ templates = Jinja2Templates(directory="static/templates")
 
 WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 ACCESS_KEY = os.getenv("ACCESS_KEY", "")
+KST = ZoneInfo("Asia/Seoul")
+WEATHER_CACHE_TTL = timedelta(minutes=30)
+BUS_CACHE_TTL = timedelta(minutes=1)
+
+_weather_cache_lock = Lock()
+_weather_cache_value: WeatherResponse | None = None
+_weather_cache_expires_at: datetime | None = None
+
+_bus_cache_lock = Lock()
+_bus_cache_value: list[dict] | None = None
+_bus_cache_expires_at: datetime | None = None
 
 
 def _slot_dt(slot) -> datetime | None:
@@ -91,6 +103,36 @@ def _build_daily_ui(slots: list, max_days: int = 8) -> list[dict]:
     return result
 
 
+def _get_weather_cached(now: datetime):
+    global _weather_cache_value, _weather_cache_expires_at
+    with _weather_cache_lock:
+        if _weather_cache_value is not None and _weather_cache_expires_at is not None and now < _weather_cache_expires_at:
+            return _weather_cache_value
+
+    weather = get_weather(now)
+
+    with _weather_cache_lock:
+        _weather_cache_value = weather
+        _weather_cache_expires_at = now + WEATHER_CACHE_TTL
+
+    return weather
+
+
+def _get_bus_arrivals_cached(now: datetime):
+    global _bus_cache_value, _bus_cache_expires_at
+    with _bus_cache_lock:
+        if _bus_cache_value is not None and _bus_cache_expires_at is not None and now < _bus_cache_expires_at:
+            return _bus_cache_value
+
+    bus_arrivals = get_bus_arrivals()
+
+    with _bus_cache_lock:
+        _bus_cache_value = bus_arrivals
+        _bus_cache_expires_at = now + BUS_CACHE_TTL
+
+    return bus_arrivals
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -101,15 +143,16 @@ def get_home(request: Request, accessKey: str | None = None):
     if ACCESS_KEY != "" and accessKey != ACCESS_KEY:
         raise HTTPException(status_code=404, detail="Not Found")
 
-    weather = get_weather()
-    hourly_series = _build_hourly_series(weather.forecasts)
-    now = datetime.now()
+    now = datetime.now(KST)
+    weather = _get_weather_cached(now)
+    bus_stops = _get_bus_arrivals_cached(now)
+    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
     return templates.TemplateResponse(
         request=request,
         name="home.html",
         context={
-            "bus_stops": get_bus_arrivals(),
+            "bus_stops": bus_stops,
             "weather": weather,
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
             "now_label": now_label,

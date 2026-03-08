@@ -206,8 +206,7 @@ def _normalize_forecasts(items: list[dict]) -> list[WeatherForecastSlot]:
     return slots
 
 
-def get_weather() -> WeatherResponse:
-    now = datetime.now()
+def get_weather(now: datetime) -> WeatherResponse:
     base_date, base_time = _select_base(now)
 
     page_no = 1

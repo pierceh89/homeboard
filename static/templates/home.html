@@ -140,7 +140,7 @@
           ></svg>
           <div
             id="weather-axis"
-            class="mt-1 grid grid-cols-6 gap-2 text-[clamp(0.76rem,0.95vw,1rem)] text-slate-500"
+            class="mt-1 grid grid gap-1 text-[clamp(0.72rem,0.80vw,1rem)] text-slate-500"
           ></div>
         </section>
       </section>
@@ -261,6 +261,10 @@
           const top = 18;
           const height = 95;
           const base = top + height;
+          const maxLabels = 8;
+
+          const rowSize = rows.length;
+          const step = Math.round(rowSize / maxLabels);
 
           const points = [];
           const labels = [];
@@ -270,9 +274,15 @@
             const x = rows.length === 1 ? 0 : (idx / (rows.length - 1)) * width;
             const y = base - ((value - min) / spread) * height;
             points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
-            labels.push(
-              `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700">${Math.round(value)}${cfg.unit}</text>`,
-            );
+            if (idx % step == 0) {
+              labels.push(
+                `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700">${Math.round(value)}${cfg.unit}</text>`,
+              );
+            } else {
+              labels.push(
+                `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700"></text>`,
+              );
+            }
           });
 
           const polygon = `0,${base.toFixed(2)} ${points.join(" ")} ${width.toFixed(2)},${base.toFixed(2)}`;
@@ -282,10 +292,13 @@
           ${labels.join("")}
         `;
 
-          axis.innerHTML = rows
-            .slice(0, 6)
-            .map((row) => `<span>${row.label}</span>`)
-            .join("");
+          const row_label_list = [];
+          for (let i = 0; i < rowSize; i = i + step) {
+            const row = rows[i];
+            row_label_list.push(`<span>${row.label}</span>`);
+          }
+          axis.style.gridTemplateColumns = `repeat(${row_label_list.length}, minmax(0, 1fr))`;
+          axis.innerHTML = row_label_list.join("");
         }
 
         tabs.forEach((tab) => {
