@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import os
 from threading import Lock
 from zoneinfo import ZoneInfo
 
@@ -8,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from api import get_bus_arrivals
+from settings import get_settings
 from weather import WeatherForecastSlot, WeatherResponse, get_weather
 
 import json
@@ -20,10 +20,10 @@ templates = Jinja2Templates(directory="static/templates")
 
 
 WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
-ACCESS_KEY = os.getenv("ACCESS_KEY", "")
 KST = ZoneInfo("Asia/Seoul")
 WEATHER_CACHE_TTL = timedelta(minutes=30)
 BUS_CACHE_TTL = timedelta(minutes=1)
+settings = get_settings()
 
 _weather_cache_lock = Lock()
 _weather_cache_value: WeatherResponse | None = None
@@ -103,13 +103,14 @@ def _build_daily_ui(slots: list, max_days: int = 8) -> list[dict]:
     return result
 
 
+
 def _get_weather_cached(now: datetime):
     global _weather_cache_value, _weather_cache_expires_at
     with _weather_cache_lock:
         if _weather_cache_value is not None and _weather_cache_expires_at is not None and now < _weather_cache_expires_at:
             return _weather_cache_value
 
-    weather = get_weather(now)
+    weather = get_weather(now, settings.weather)
 
     with _weather_cache_lock:
         _weather_cache_value = weather
@@ -124,7 +125,7 @@ def _get_bus_arrivals_cached(now: datetime):
         if _bus_cache_value is not None and _bus_cache_expires_at is not None and now < _bus_cache_expires_at:
             return _bus_cache_value
 
-    bus_arrivals = get_bus_arrivals()
+    bus_arrivals = get_bus_arrivals(request=settings.bus_arrival)
 
     with _bus_cache_lock:
         _bus_cache_value = bus_arrivals
@@ -140,7 +141,7 @@ def read_root():
 
 @app.get("/home")
 def get_home(request: Request, accessKey: str | None = None):
-    if ACCESS_KEY != "" and accessKey != ACCESS_KEY:
+    if settings.access_key != "" and accessKey != settings.access_key:
         raise HTTPException(status_code=404, detail="Not Found")
 
     now = datetime.now(KST)

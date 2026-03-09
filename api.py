@@ -1,7 +1,6 @@
-import os
 import httpx
 
-PUBLIC_API_KEY = os.getenv("PUBLIC_API_KEY")
+from settings import BusArrivalRequest, get_settings
 
 STATE_CD = {
     0: "교차로통과",
@@ -133,26 +132,16 @@ def _normalize_arrival(row: dict) -> dict:
     }
 
 
-def get_bus_arrivals() -> list:
+def get_bus_arrivals(request: BusArrivalRequest) -> list:
     result = []
-    busstops = {
-        "228003400": {
-            "name": "벽산.동천디이스트정문",
-            "filter": ["17", "17-1"],
-            "no": "56421"
-        },
-        "228002981": {
-            "name": "벽산아파트",
-            "filter": ["14"],
-            "no": "56079"
-        },
-    }
+    settings = get_settings()
 
-    for bus_stop_id, bus_stop in busstops.items():
-        bus_stop_name = bus_stop["name"]
-        bus_stop_filter = bus_stop["filter"]
+    for bus_stop in request.busstops:
+        bus_stop_id = bus_stop.id
+        bus_stop_name = bus_stop.name
+        bus_stop_filter = bus_stop.filter
         query_params = {
-            "serviceKey": PUBLIC_API_KEY,
+            "serviceKey": settings.public_api_key,
             "stationId": bus_stop_id,
             "format": "json",
         }
@@ -189,7 +178,7 @@ def get_bus_arrivals() -> list:
 
         result.append(
             {
-                "stationId": bus_stop["no"],
+                "stationId": bus_stop.no,
                 "stationName": bus_stop_name,
                 "arrivals": normalized_arrivals,
             }

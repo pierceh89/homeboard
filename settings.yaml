@@ -1,0 +1,18 @@
+weather:
+  region: "용인시 수지구 동천동"
+  nx: 62
+  ny: 122
+
+bus_arrival:
+  busstops:
+    - id: "228003400"
+      name: "벽산.동천디이스트정문"
+      filter:
+        - "17"
+        - "17-1"
+      "no": "56421"
+    - id: "228002981"
+      name: "벽산아파트"
+      filter:
+        - "14"
+      "no": "56079"

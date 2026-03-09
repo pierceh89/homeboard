@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import httpx
 
-from api import PUBLIC_API_KEY
+from settings import WeatherRequest, get_settings
 
 FORECAST_TIMES = [2, 5, 8, 11, 14, 17, 20, 23]
 
@@ -206,7 +206,11 @@ def _normalize_forecasts(items: list[dict]) -> list[WeatherForecastSlot]:
     return slots
 
 
-def get_weather(now: datetime) -> WeatherResponse:
+def get_weather(
+    now: datetime,
+    request: WeatherRequest
+) -> WeatherResponse:
+    settings = get_settings()
     base_date, base_time = _select_base(now)
 
     page_no = 1
@@ -216,14 +220,14 @@ def get_weather(now: datetime) -> WeatherResponse:
     while True:
         try:
             query_params = {
-                "serviceKey": PUBLIC_API_KEY,
+                "serviceKey": settings.public_api_key,
                 "pageNo": page_no,
                 "numOfRows": 300,
                 "dataType": "JSON",
                 "base_date": base_date,
                 "base_time": base_time,
-                "nx": 62,
-                "ny": 122,
+                "nx": request.nx,
+                "ny": request.ny,
             }
             response = httpx.get(url=url, params=query_params, timeout=10.0)
             res_json = response.json()
@@ -235,7 +239,7 @@ def get_weather(now: datetime) -> WeatherResponse:
                 break
         except httpx.HTTPError:
             return WeatherResponse(
-                region="용인시 수지구 동천동",
+                region=request.region,
                 base_date=base_date,
                 base_time=base_time,
                 fetched_at=now.strftime("%Y-%m-%d %H:%M"),
@@ -244,7 +248,7 @@ def get_weather(now: datetime) -> WeatherResponse:
             )
         if response.status_code != 200:
             return WeatherResponse(
-                region="용인시 수지구 동천동",
+                region=request.region,
                 base_date=base_date,
                 base_time=base_time,
                 fetched_at=now.strftime("%Y-%m-%d %H:%M"),
@@ -256,7 +260,7 @@ def get_weather(now: datetime) -> WeatherResponse:
     current = forecasts[0] if forecasts else None
 
     return WeatherResponse(
-        region="용인시 수지구 동천동",
+        region=request.region,
         base_date=base_date,
         base_time=base_time,
         fetched_at=now.strftime("%Y-%m-%d %H:%M"),
