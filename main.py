@@ -104,13 +104,13 @@ def _build_daily_ui(slots: list, max_days: int = 8) -> list[dict]:
 
 
 
-def _get_weather_cached(now: datetime):
+async def _get_weather_cached(now: datetime):
     global _weather_cache_value, _weather_cache_expires_at
     with _weather_cache_lock:
         if _weather_cache_value is not None and _weather_cache_expires_at is not None and now < _weather_cache_expires_at:
             return _weather_cache_value
 
-    weather = get_weather(now, settings.weather)
+    weather = await get_weather(now, settings.weather)
 
     with _weather_cache_lock:
         _weather_cache_value = weather
@@ -119,13 +119,13 @@ def _get_weather_cached(now: datetime):
     return weather
 
 
-def _get_bus_arrivals_cached(now: datetime):
+async def _get_bus_arrivals_cached(now: datetime):
     global _bus_cache_value, _bus_cache_expires_at
     with _bus_cache_lock:
         if _bus_cache_value is not None and _bus_cache_expires_at is not None and now < _bus_cache_expires_at:
             return _bus_cache_value
 
-    bus_arrivals = get_bus_arrivals(request=settings.bus_arrival)
+    bus_arrivals = await get_bus_arrivals(request=settings.bus_arrival)
 
     with _bus_cache_lock:
         _bus_cache_value = bus_arrivals
@@ -140,13 +140,13 @@ def read_root():
 
 
 @app.get("/home")
-def get_home(request: Request, accessKey: str | None = None):
+async def get_home(request: Request, accessKey: str | None = None):
     if settings.access_key != "" and accessKey != settings.access_key:
         raise HTTPException(status_code=404, detail="Not Found")
 
     now = datetime.now(KST)
-    weather = _get_weather_cached(now)
-    bus_stops = _get_bus_arrivals_cached(now)
+    weather = await _get_weather_cached(now)
+    bus_stops = await _get_bus_arrivals_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
     return templates.TemplateResponse(

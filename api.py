@@ -132,7 +132,7 @@ def _normalize_arrival(row: dict) -> dict:
     }
 
 
-def get_bus_arrivals(request: BusArrivalRequest) -> list:
+async def get_bus_arrivals(request: BusArrivalRequest) -> list:
     result = []
     settings = get_settings()
 
@@ -147,11 +147,12 @@ def get_bus_arrivals(request: BusArrivalRequest) -> list:
         }
 
         try:
-            response = httpx.get(
-                url="https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2",
-                params=query_params,
-                timeout=10.0,
-            )
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url="https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2",
+                    params=query_params,
+                    timeout=10.0,
+                )
         except httpx.HTTPError:
             result.append(
                 {

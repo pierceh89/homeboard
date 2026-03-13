@@ -206,7 +206,7 @@ def _normalize_forecasts(items: list[dict]) -> list[WeatherForecastSlot]:
     return slots
 
 
-def get_weather(
+async def get_weather(
     now: datetime,
     request: WeatherRequest
 ) -> WeatherResponse:
@@ -217,26 +217,25 @@ def get_weather(
     total_items = []
     url = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
 
-    while True:
+    # base_time 기준 +1일(24시간)만 보여주기 때문에 전부 호출하지 않음
+    while page_no <= 2:
         try:
             query_params = {
                 "serviceKey": settings.public_api_key,
                 "pageNo": page_no,
-                "numOfRows": 300,
+                "numOfRows": 200,
                 "dataType": "JSON",
                 "base_date": base_date,
                 "base_time": base_time,
                 "nx": request.nx,
                 "ny": request.ny,
             }
-            response = httpx.get(url=url, params=query_params, timeout=10.0)
-            res_json = response.json()
-            items = res_json.get("response", {}).get("body", {}).get("items", {}).get("item", [])
-            total_items.extend(items)
-            total_count = res_json.get("response", {}).get("body", {}).get("totalCount", 0)
-            page_no = page_no + 1
-            if len(total_items) >= total_count:
-                break
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url=url, params=query_params, timeout=10.0)
+                res_json = response.json()
+                items = res_json.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                total_items.extend(items)
+                page_no = page_no + 1
         except httpx.HTTPError:
             return WeatherResponse(
                 region=request.region,
