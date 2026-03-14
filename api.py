@@ -1,6 +1,9 @@
-import httpx
+from __future__ import annotations
 
-from settings import BusArrivalRequest, get_settings
+from dataclasses import dataclass
+
+from api_shared import clean_text, fetch_json, to_int
+from settings import BusArrivalRequest, BusStop, get_settings
 
 STATE_CD = {
     0: "교차로통과",
@@ -55,134 +58,142 @@ ROUTE_TYPE_CD = {
     53: "일반형공항버스",
 }
 
-
-def _to_int(value):
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+BUS_ARRIVAL_URL = "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2"
 
 
-def _to_str(value):
-    if value is None:
-        return None
-    return str(value)
+@dataclass
+class BusVehicleArrival:
+    vehId: int | None
+    plateNo: str | None
+    predictTime: int | None
+    predictTimeSec: int | None
+    locationNo: int | None
+    stationNm: str | None
+    stateCd: int | None
+    stateName: str | None
+    crowded: int | None
+    crowdedName: str | None
+    remainSeatCnt: int | None
+    lowPlate: int | None
+    lowPlateName: str | None
+    taglessCd: int | None
+    taglessName: str | None
+
+    @classmethod
+    def from_api(cls, row: dict, suffix: str) -> "BusVehicleArrival":
+        state_cd = to_int(row.get(f"stateCd{suffix}"))
+        crowded = to_int(row.get(f"crowded{suffix}"))
+        low_plate = to_int(row.get(f"lowPlate{suffix}"))
+        tagless = to_int(row.get(f"taglessCd{suffix}"))
+        return cls(
+            vehId=to_int(row.get(f"vehId{suffix}")),
+            plateNo=clean_text(row.get(f"plateNo{suffix}")),
+            predictTime=to_int(row.get(f"predictTime{suffix}")),
+            predictTimeSec=to_int(row.get(f"predictTimeSec{suffix}")),
+            locationNo=to_int(row.get(f"locationNo{suffix}")),
+            stationNm=clean_text(row.get(f"stationNm{suffix}")),
+            stateCd=state_cd,
+            stateName=STATE_CD.get(state_cd),
+            crowded=crowded,
+            crowdedName=CROWDED_CD.get(crowded),
+            remainSeatCnt=to_int(row.get(f"remainSeatCnt{suffix}")),
+            lowPlate=low_plate,
+            lowPlateName=LOW_PLATE_CD.get(low_plate),
+            taglessCd=tagless,
+            taglessName=TAGLESS_CD.get(tagless),
+        )
 
 
-def _normalize_arrival(row: dict) -> dict:
-    route_type = _to_int(row.get("routeTypeCd"))
-    state_cd1 = _to_int(row.get("stateCd1"))
-    state_cd2 = _to_int(row.get("stateCd2"))
-    crowded1 = _to_int(row.get("crowded1"))
-    crowded2 = _to_int(row.get("crowded2"))
-    low_plate1 = _to_int(row.get("lowPlate1"))
-    low_plate2 = _to_int(row.get("lowPlate2"))
-    tagless1 = _to_int(row.get("taglessCd1"))
-    tagless2 = _to_int(row.get("taglessCd2"))
-    flag = _to_str(row.get("flag"))
+@dataclass
+class BusArrival:
+    routeId: int | None
+    routeName: str | None
+    routeTypeCd: int | None
+    routeTypeName: str | None
+    routeDestId: int | None
+    routeDestName: str | None
+    stationId: int | None
+    staOrder: int | None
+    turnSeq: int | None
+    flag: str | None
+    flagName: str | None
+    firstVehicle: BusVehicleArrival
+    secondVehicle: BusVehicleArrival
 
-    return {
-        "routeId": _to_int(row.get("routeId")),
-        "routeName": _to_str(row.get("routeName")),
-        "routeTypeCd": route_type,
-        "routeTypeName": ROUTE_TYPE_CD.get(route_type),
-        "routeDestId": _to_int(row.get("routeDestId")),
-        "routeDestName": _to_str(row.get("routeDestName")),
-        "stationId": _to_int(row.get("stationId")),
-        "staOrder": _to_int(row.get("staOrder")),
-        "turnSeq": _to_int(row.get("turnSeq")),
-        "flag": flag,
-        "flagName": FLAG_CD.get(flag),
-        "firstVehicle": {
-            "vehId": _to_int(row.get("vehId1")),
-            "plateNo": _to_str(row.get("plateNo1")),
-            "predictTime": _to_int(row.get("predictTime1")),
-            "predictTimeSec": _to_int(row.get("predictTimeSec1")),
-            "locationNo": _to_int(row.get("locationNo1")),
-            "stationNm": _to_str(row.get("stationNm1")),
-            "stateCd": state_cd1,
-            "stateName": STATE_CD.get(state_cd1),
-            "crowded": crowded1,
-            "crowdedName": CROWDED_CD.get(crowded1),
-            "remainSeatCnt": _to_int(row.get("remainSeatCnt1")),
-            "lowPlate": low_plate1,
-            "lowPlateName": LOW_PLATE_CD.get(low_plate1),
-            "taglessCd": tagless1,
-            "taglessName": TAGLESS_CD.get(tagless1),
-        },
-        "secondVehicle": {
-            "vehId": _to_int(row.get("vehId2")),
-            "plateNo": _to_str(row.get("plateNo2")),
-            "predictTime": _to_int(row.get("predictTime2")),
-            "predictTimeSec": _to_int(row.get("predictTimeSec2")),
-            "locationNo": _to_int(row.get("locationNo2")),
-            "stationNm": _to_str(row.get("stationNm2")),
-            "stateCd": state_cd2,
-            "stateName": STATE_CD.get(state_cd2),
-            "crowded": crowded2,
-            "crowdedName": CROWDED_CD.get(crowded2),
-            "remainSeatCnt": _to_int(row.get("remainSeatCnt2")),
-            "lowPlate": low_plate2,
-            "lowPlateName": LOW_PLATE_CD.get(low_plate2),
-            "taglessCd": tagless2,
-            "taglessName": TAGLESS_CD.get(tagless2),
-        },
-    }
+    @classmethod
+    def from_api(cls, row: dict) -> "BusArrival":
+        route_type = to_int(row.get("routeTypeCd"))
+        flag = clean_text(row.get("flag"))
+        return cls(
+            routeId=to_int(row.get("routeId")),
+            routeName=clean_text(row.get("routeName")),
+            routeTypeCd=route_type,
+            routeTypeName=ROUTE_TYPE_CD.get(route_type),
+            routeDestId=to_int(row.get("routeDestId")),
+            routeDestName=clean_text(row.get("routeDestName")),
+            stationId=to_int(row.get("stationId")),
+            staOrder=to_int(row.get("staOrder")),
+            turnSeq=to_int(row.get("turnSeq")),
+            flag=flag,
+            flagName=FLAG_CD.get(flag),
+            firstVehicle=BusVehicleArrival.from_api(row, "1"),
+            secondVehicle=BusVehicleArrival.from_api(row, "2"),
+        )
 
 
-async def get_bus_arrivals(request: BusArrivalRequest) -> list:
-    result = []
+@dataclass
+class BusArrivalStop:
+    stationId: str
+    stationName: str
+    arrivals: list[BusArrival]
+
+    @classmethod
+    def empty(cls, stop: BusStop) -> "BusArrivalStop":
+        return cls(
+            stationId=stop.no,
+            stationName=stop.name,
+            arrivals=[],
+        )
+
+
+def _filter_arrivals(rows: list[dict], bus_stop: BusStop) -> list[BusArrival]:
+    allowed_routes = set(bus_stop.filter)
+    arrivals: list[BusArrival] = []
+    for row in rows:
+        route_name = clean_text(row.get("routeName"))
+        if route_name not in allowed_routes:
+            continue
+        arrivals.append(BusArrival.from_api(row))
+    return arrivals
+
+
+async def get_bus_arrivals(request: BusArrivalRequest) -> list[BusArrivalStop]:
     settings = get_settings()
+    result: list[BusArrivalStop] = []
 
     for bus_stop in request.busstops:
-        bus_stop_id = bus_stop.id
-        bus_stop_name = bus_stop.name
-        bus_stop_filter = bus_stop.filter
-        query_params = {
-            "serviceKey": settings.public_api_key,
-            "stationId": bus_stop_id,
-            "format": "json",
-        }
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    url="https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2",
-                    params=query_params,
-                    timeout=10.0,
-                )
-        except httpx.HTTPError:
-            result.append(
-                {
-                    "stationId": _to_int(bus_stop_id),
-                    "stationName": bus_stop_name,
-                    "arrivals": [],
-                }
-            )
+        payload = await fetch_json(
+            url=BUS_ARRIVAL_URL,
+            params={
+                "serviceKey": settings.public_api_key,
+                "stationId": bus_stop.id,
+                "format": "json",
+            },
+        )
+        if payload is None:
+            result.append(BusArrivalStop.empty(bus_stop))
             continue
 
-        if response.status_code != 200:
-            result.append(
-                {
-                    "stationId": _to_int(bus_stop_id),
-                    "stationName": bus_stop_name,
-                    "arrivals": [],
-                }
-            )
-            continue
-
-        res_json = response.json()
-        raw_arrivals = res_json.get("response", {}).get("msgBody", {}).get("busArrivalList", [])
-        normalized_arrivals = [_normalize_arrival(row) for row in raw_arrivals if str(row["routeName"]) in bus_stop_filter]
+        raw_arrivals = payload.get("response", {}).get("msgBody", {}).get("busArrivalList", [])
+        if not isinstance(raw_arrivals, list):
+            raw_arrivals = []
 
         result.append(
-            {
-                "stationId": bus_stop.no,
-                "stationName": bus_stop_name,
-                "arrivals": normalized_arrivals,
-            }
+            BusArrivalStop(
+                stationId=bus_stop.no,
+                stationName=bus_stop.name,
+                arrivals=_filter_arrivals(raw_arrivals, bus_stop),
+            )
         )
 
     return result

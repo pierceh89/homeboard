@@ -6,7 +6,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from api import get_bus_arrivals
+from air import AirConditionResponse, get_air_condition
+from api import BusArrivalStop, get_bus_arrivals
 from settings import get_settings
 from weather import WeatherForecastSlot, WeatherResponse, get_weather
 
@@ -23,6 +24,7 @@ WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 KST = ZoneInfo("Asia/Seoul")
 WEATHER_CACHE_TTL = timedelta(minutes=30)
 BUS_CACHE_TTL = timedelta(minutes=1)
+AIR_CACHE_TTL = timedelta(minutes=15)
 settings = get_settings()
 
 _weather_cache_lock = Lock()
@@ -30,8 +32,12 @@ _weather_cache_value: WeatherResponse | None = None
 _weather_cache_expires_at: datetime | None = None
 
 _bus_cache_lock = Lock()
-_bus_cache_value: list[dict] | None = None
+_bus_cache_value: list[BusArrivalStop] | None = None
 _bus_cache_expires_at: datetime | None = None
+
+_air_cache_lock = Lock()
+_air_cache_value: AirConditionResponse | None = None
+_air_cache_expires_at: datetime | None = None
 
 
 def _slot_dt(slot) -> datetime | None:
@@ -134,6 +140,21 @@ async def _get_bus_arrivals_cached(now: datetime):
     return bus_arrivals
 
 
+async def _get_air_condition_cached(now: datetime):
+    global _air_cache_value, _air_cache_expires_at
+    with _air_cache_lock:
+        if _air_cache_value is not None and _air_cache_expires_at is not None and now < _air_cache_expires_at:
+            return _air_cache_value
+
+    air = await get_air_condition(now)
+
+    with _air_cache_lock:
+        _air_cache_value = air
+        _air_cache_expires_at = now + AIR_CACHE_TTL
+
+    return air
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -147,6 +168,7 @@ async def get_home(request: Request, accessKey: str | None = None):
     now = datetime.now(KST)
     weather = await _get_weather_cached(now)
     bus_stops = await _get_bus_arrivals_cached(now)
+    air = await _get_air_condition_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
     return templates.TemplateResponse(
@@ -155,6 +177,7 @@ async def get_home(request: Request, accessKey: str | None = None):
         context={
             "bus_stops": bus_stops,
             "weather": weather,
+            "air": air,
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
             "now_label": now_label,
         },

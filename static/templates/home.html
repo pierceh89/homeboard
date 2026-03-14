@@ -78,6 +78,16 @@
                   풍속: {{ weather.current.wind_speed_ms if weather.current and
                   weather.current.wind_speed_ms is not none else '-' }}m/s
                 </span>
+                <span class="text-[clamp(0.78rem,0.9vw,1rem)] opacity-90">
+                  미세먼지 {{ air.current.pm10_value if air.current and
+                  air.current.pm10_value is not none else '-' }}㎍/㎥ ({{
+                  air.current.pm10_grade_label if air.current and
+                  air.current.pm10_grade_label else '정보없음' }})<br />
+                  초미세먼지 {{ air.current.pm25_value if air.current and
+                  air.current.pm25_value is not none else '-' }}㎍/㎥ ({{
+                  air.current.pm25_grade_label if air.current and
+                  air.current.pm25_grade_label else '정보없음' }})
+                </span>
               </div>
             </div>
           </div>

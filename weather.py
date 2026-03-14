@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-import httpx
-
+from api_shared import clean_text, fetch_json, fetched_at_label, to_float, to_int
 from settings import WeatherRequest, get_settings
 
 FORECAST_TIMES = [2, 5, 8, 11, 14, 17, 20, 23]
+WEATHER_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
 
 SKY_MAP = {
     1: "맑음",
@@ -24,86 +24,18 @@ PTY_MAP = {
 }
 
 
-@dataclass
-class WeatherForecastSlot:
-    fcst_date: str
-    fcst_time: str
-    categories: dict[str, str] = field(default_factory=dict)
-    temp_c: float | None = None
-    min_temp_c: float | None = None
-    max_temp_c: float | None = None
-    humidity_pct: int | None = None
-    rain_prob_pct: int | None = None
-    sky_code: int | None = None
-    sky_text: str | None = None
-    precip_type_code: int | None = None
-    precip_type_text: str | None = None
-    precip_mm: float | None = None
-    precip_text: str | None = None
-    snow_cm: float | None = None
-    snow_text: str | None = None
-    wind_speed_ms: float | None = None
-    wind_text: str | None = None
-    wind_dir_deg: float | None = None
-    wind_uuu_ms: float | None = None
-    wind_vvv_ms: float | None = None
-    wave_m: float | None = None
-
-
-@dataclass
-class WeatherResponse:
-    region: str
-    base_date: str
-    base_time: str
-    fetched_at: str
-    current: WeatherForecastSlot | None
-    forecasts: list[WeatherForecastSlot]
-
-
-def _to_int(value: str | None) -> int | None:
-    if value is None:
+def _parse_amount(raw: str | None, empty_values: set[str], unit: str) -> float | None:
+    cleaned = clean_text(raw)
+    if cleaned is None:
         return None
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
-
-
-def _to_float(value: str | None) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _parse_precip_mm(raw: str | None) -> float | None:
-    if not raw:
-        return None
-    if raw in {"강수없음", "없음"}:
+    if cleaned in empty_values:
         return 0.0
-    cleaned = raw.replace("mm", "").replace(" ", "")
-    if "~" in cleaned:
-        start = cleaned.split("~", 1)[0]
-        return _to_float(start)
-    if cleaned.endswith("이상"):
-        cleaned = cleaned.removesuffix("이상")
-    return _to_float(cleaned)
-
-
-def _parse_snow_cm(raw: str | None) -> float | None:
-    if not raw:
-        return None
-    if raw in {"적설없음", "없음"}:
-        return 0.0
-    cleaned = raw.replace("cm", "").replace(" ", "")
-    if "~" in cleaned:
-        start = cleaned.split("~", 1)[0]
-        return _to_float(start)
-    if cleaned.endswith("이상"):
-        cleaned = cleaned.removesuffix("이상")
-    return _to_float(cleaned)
+    normalized = cleaned.replace(unit, "").replace(" ", "")
+    if "~" in normalized:
+        normalized = normalized.split("~", 1)[0]
+    if normalized.endswith("이상"):
+        normalized = normalized.removesuffix("이상")
+    return to_float(normalized)
 
 
 def _precip_text(mm: float | None) -> str | None:
@@ -147,122 +79,149 @@ def _select_base(now: datetime) -> tuple[str, str]:
     return previous_day.strftime("%Y%m%d"), "2300"
 
 
-def _build_slot(fcst_date: str, fcst_time: str, categories: dict[str, str]) -> WeatherForecastSlot:
-    sky_code = _to_int(categories.get("SKY"))
-    pty_code = _to_int(categories.get("PTY"))
-    precip_mm = _parse_precip_mm(categories.get("PCP"))
-    snow_cm = _parse_snow_cm(categories.get("SNO"))
-    wind_speed = _to_float(categories.get("WSD"))
-    if precip_mm != 0:
-        sky_text = PTY_MAP.get(pty_code)
-    else:
-        sky_text = SKY_MAP.get(sky_code)
+@dataclass
+class WeatherForecastSlot:
+    fcst_date: str
+    fcst_time: str
+    categories: dict[str, str] = field(default_factory=dict)
+    temp_c: float | None = None
+    min_temp_c: float | None = None
+    max_temp_c: float | None = None
+    humidity_pct: int | None = None
+    rain_prob_pct: int | None = None
+    sky_code: int | None = None
+    sky_text: str | None = None
+    precip_type_code: int | None = None
+    precip_type_text: str | None = None
+    precip_mm: float | None = None
+    precip_text: str | None = None
+    snow_cm: float | None = None
+    snow_text: str | None = None
+    wind_speed_ms: float | None = None
+    wind_text: str | None = None
+    wind_dir_deg: float | None = None
+    wind_uuu_ms: float | None = None
+    wind_vvv_ms: float | None = None
+    wave_m: float | None = None
 
-    return WeatherForecastSlot(
-        fcst_date=fcst_date,
-        fcst_time=fcst_time,
-        categories=categories,
-        temp_c=_to_float(categories.get("TMP")),
-        min_temp_c=_to_float(categories.get("TMN")),
-        max_temp_c=_to_float(categories.get("TMX")),
-        humidity_pct=_to_int(categories.get("REH")),
-        rain_prob_pct=_to_int(categories.get("POP")),
-        sky_code=sky_code,
-        sky_text=sky_text,
-        precip_type_code=pty_code,
-        precip_type_text=PTY_MAP.get(pty_code),
-        precip_mm=precip_mm,
-        precip_text=_precip_text(precip_mm),
-        snow_cm=snow_cm,
-        snow_text=_snow_text(snow_cm),
-        wind_speed_ms=wind_speed,
-        wind_text=_wind_text(wind_speed),
-        wind_dir_deg=_to_float(categories.get("VEC")),
-        wind_uuu_ms=_to_float(categories.get("UUU")),
-        wind_vvv_ms=_to_float(categories.get("VVV")),
-        wave_m=_to_float(categories.get("WAV")),
-    )
+    @classmethod
+    def from_categories(cls, fcst_date: str, fcst_time: str, categories: dict[str, str]) -> "WeatherForecastSlot":
+        sky_code = to_int(categories.get("SKY"))
+        precip_type_code = to_int(categories.get("PTY"))
+        precip_mm = _parse_amount(categories.get("PCP"), {"강수없음", "없음"}, "mm")
+        snow_cm = _parse_amount(categories.get("SNO"), {"적설없음", "없음"}, "cm")
+        wind_speed = to_float(categories.get("WSD"))
+        sky_text = PTY_MAP.get(precip_type_code) if precip_mm != 0 else SKY_MAP.get(sky_code)
+        return cls(
+            fcst_date=fcst_date,
+            fcst_time=fcst_time,
+            categories=categories,
+            temp_c=to_float(categories.get("TMP")),
+            min_temp_c=to_float(categories.get("TMN")),
+            max_temp_c=to_float(categories.get("TMX")),
+            humidity_pct=to_int(categories.get("REH")),
+            rain_prob_pct=to_int(categories.get("POP")),
+            sky_code=sky_code,
+            sky_text=sky_text,
+            precip_type_code=precip_type_code,
+            precip_type_text=PTY_MAP.get(precip_type_code),
+            precip_mm=precip_mm,
+            precip_text=_precip_text(precip_mm),
+            snow_cm=snow_cm,
+            snow_text=_snow_text(snow_cm),
+            wind_speed_ms=wind_speed,
+            wind_text=_wind_text(wind_speed),
+            wind_dir_deg=to_float(categories.get("VEC")),
+            wind_uuu_ms=to_float(categories.get("UUU")),
+            wind_vvv_ms=to_float(categories.get("VVV")),
+            wave_m=to_float(categories.get("WAV")),
+        )
+
+
+@dataclass
+class WeatherResponse:
+    region: str
+    base_date: str
+    base_time: str
+    fetched_at: str
+    current: WeatherForecastSlot | None
+    forecasts: list[WeatherForecastSlot]
+
+    @classmethod
+    def empty(cls, region: str, base_date: str, base_time: str, now: datetime) -> "WeatherResponse":
+        return cls(
+            region=region,
+            base_date=base_date,
+            base_time=base_time,
+            fetched_at=fetched_at_label(now),
+            current=None,
+            forecasts=[],
+        )
+
+
+def _group_categories(items: list[dict]) -> dict[tuple[str, str], dict[str, str]]:
+    grouped: dict[tuple[str, str], dict[str, str]] = {}
+    for row in items:
+        fcst_date = clean_text(row.get("fcstDate"))
+        fcst_time = clean_text(row.get("fcstTime"))
+        category = clean_text(row.get("category"))
+        if fcst_date is None or fcst_time is None or category is None:
+            continue
+        grouped.setdefault((fcst_date, fcst_time), {})[category] = str(row.get("fcstValue", ""))
+    return grouped
 
 
 def _normalize_forecasts(items: list[dict]) -> list[WeatherForecastSlot]:
-    grouped: dict[tuple[str, str], dict[str, str]] = {}
-
-    for row in items:
-        fcst_date = str(row.get("fcstDate", ""))
-        fcst_time = str(row.get("fcstTime", ""))
-        category = str(row.get("category", ""))
-        fcst_value = str(row.get("fcstValue", ""))
-
-        if not fcst_date or not fcst_time or not category:
-            continue
-
-        key = (fcst_date, fcst_time)
-        grouped.setdefault(key, {})[category] = fcst_value
-
-    slots: list[WeatherForecastSlot] = []
-    for fcst_date, fcst_time in sorted(grouped.keys()):
-        slots.append(_build_slot(fcst_date, fcst_time, grouped[(fcst_date, fcst_time)]))
-
-    return slots
+    grouped = _group_categories(items)
+    return [
+        WeatherForecastSlot.from_categories(fcst_date, fcst_time, grouped[(fcst_date, fcst_time)])
+        for fcst_date, fcst_time in sorted(grouped.keys())
+    ]
 
 
-async def get_weather(
-    now: datetime,
-    request: WeatherRequest
-) -> WeatherResponse:
+async def _fetch_weather_page(base_date: str, base_time: str, request: WeatherRequest, page_no: int) -> list[dict] | None:
     settings = get_settings()
+    payload = await fetch_json(
+        url=WEATHER_URL,
+        params={
+            "serviceKey": settings.public_api_key,
+            "pageNo": page_no,
+            "numOfRows": 200,
+            "dataType": "JSON",
+            "base_date": base_date,
+            "base_time": base_time,
+            "nx": request.nx,
+            "ny": request.ny,
+        },
+    )
+    if payload is None:
+        return None
+
+    items = payload.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+    return items if isinstance(items, list) else []
+
+
+async def get_weather(now: datetime, request: WeatherRequest) -> WeatherResponse:
     base_date, base_time = _select_base(now)
+    total_items: list[dict] = []
 
-    page_no = 1
-    total_items = []
-    url = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
-
-    # base_time 기준 +1일(24시간)만 보여주기 때문에 전부 호출하지 않음
-    while page_no <= 2:
-        try:
-            query_params = {
-                "serviceKey": settings.public_api_key,
-                "pageNo": page_no,
-                "numOfRows": 200,
-                "dataType": "JSON",
-                "base_date": base_date,
-                "base_time": base_time,
-                "nx": request.nx,
-                "ny": request.ny,
-            }
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url=url, params=query_params, timeout=10.0)
-                res_json = response.json()
-                items = res_json.get("response", {}).get("body", {}).get("items", {}).get("item", [])
-                total_items.extend(items)
-                page_no = page_no + 1
-        except httpx.HTTPError:
-            return WeatherResponse(
+    for page_no in range(1, 3):
+        items = await _fetch_weather_page(base_date, base_time, request, page_no)
+        if items is None:
+            return WeatherResponse.empty(
                 region=request.region,
                 base_date=base_date,
                 base_time=base_time,
-                fetched_at=now.strftime("%Y-%m-%d %H:%M"),
-                current=None,
-                forecasts=[],
+                now=now,
             )
-        if response.status_code != 200:
-            return WeatherResponse(
-                region=request.region,
-                base_date=base_date,
-                base_time=base_time,
-                fetched_at=now.strftime("%Y-%m-%d %H:%M"),
-                current=None,
-                forecasts=[],
-            )
+        total_items.extend(items)
 
     forecasts = _normalize_forecasts(total_items)
-    current = forecasts[0] if forecasts else None
-
     return WeatherResponse(
         region=request.region,
         base_date=base_date,
         base_time=base_time,
-        fetched_at=now.strftime("%Y-%m-%d %H:%M"),
-        current=current,
+        fetched_at=fetched_at_label(now),
+        current=forecasts[0] if forecasts else None,
         forecasts=forecasts,
     )

@@ -16,3 +16,6 @@ bus_arrival:
       filter:
         - "14"
       "no": "56079"
+
+air:
+  station: "수지"

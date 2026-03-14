@@ -4,6 +4,10 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
 
 
+class AirConditionRequest(BaseModel):
+    station: str
+
+
 class WeatherRequest(BaseModel):
     region: str
     nx: int
@@ -33,6 +37,7 @@ class Settings(BaseSettings):
     public_api_key: str = Field(default="", validation_alias="PUBLIC_API_KEY")
     weather: WeatherRequest
     bus_arrival: BusArrivalRequest
+    air: AirConditionRequest
 
     @classmethod
     def settings_customise_sources(
