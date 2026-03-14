@@ -42,7 +42,7 @@
       class="stage grid grid-cols-1 items-start gap-3 p-0 lg:grid-cols-2 lg:gap-4"
     >
       <section
-        class="weather-card rounded-2xl p-4 text-slate-800 grid grid-rows-[auto_auto_1fr] gap-4 shadow-sm sm:p-5 lg:p-6"
+        class="weather-card rounded-2xl p-3 text-slate-800 grid grid-rows-[auto_auto_1fr] gap-4 shadow-sm sm:p-3 lg:p-3"
       >
         <header
           class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 items-start lg:gap-6"
@@ -99,8 +99,8 @@
             class="col-span-2 mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-[clamp(0.8rem,3vw,0.95rem)] opacity-90 leading-6 lg:mt-2"
           >
             <span>
-              강수확률: {{ weather.current.rain_prob_pct if weather.current
-              and weather.current.rain_prob_pct is not none else '-' }}%
+              강수확률: {{ weather.current.rain_prob_pct if weather.current and
+              weather.current.rain_prob_pct is not none else '-' }}%
             </span>
             <span>
               미세먼지 {{ air.current.pm10_value if air.current and
@@ -154,7 +154,7 @@
         </nav>
 
         <section
-          class="chart-wrap rounded-xl px-3 py-3 sm:px-4 sm:py-4"
+          class="chart-wrap rounded-xl px-1 py-1 sm:px-2 sm:py-2"
           data-hourly="{{ hourly_series }}"
         >
           <svg
@@ -164,13 +164,13 @@
           ></svg>
           <div
             id="weather-axis"
-            class="mt-2 grid gap-1 text-[clamp(0.78rem,2.8vw,1rem)] text-slate-500"
+            class="mt-2 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
           ></div>
         </section>
       </section>
 
       <section
-        class="weather-card rounded-2xl p-4 text-slate-800 shadow-sm sm:p-5 lg:p-6"
+        class="weather-card rounded-2xl p-3 text-slate-800 shadow-sm sm:p-3 lg:p-3"
       >
         <!-- <h1
           class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
@@ -294,7 +294,7 @@
           const spread = max - min || 1;
           const width = 1000;
           const top = 18;
-          const height = 95;
+          const height = 105;
           const base = top + height;
           const maxLabels = 8;
 
