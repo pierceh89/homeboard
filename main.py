@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from io import BytesIO
 from threading import Lock
 from zoneinfo import ZoneInfo
 
@@ -52,6 +53,19 @@ def _hour_label(dt_value: datetime) -> str:
     ampm = "AM" if hour < 12 else "PM"
     view_hour = hour % 12 or 12
     return f"{ampm} {view_hour}시"
+
+
+def _convert_png_to_8bit_grayscale(image_bytes: bytes) -> bytes:
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="Pillow is not installed") from exc
+
+    with Image.open(BytesIO(image_bytes)) as image:
+        output = BytesIO()
+        # Kindle endpoint returns an 8-bit grayscale PNG to reduce output depth.
+        image.convert("L").save(output, format="PNG")
+        return output.getvalue()
 
 
 def _build_hourly_series(slots: list[WeatherForecastSlot], max_items: int = 12) -> list[dict]:
@@ -191,6 +205,7 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                 )
                 await page.goto(target_url, wait_until="networkidle")
                 image_bytes = await page.screenshot(type="png", full_page=False)
+                image_bytes = _convert_png_to_8bit_grayscale(image_bytes)
             finally:
                 await browser.close()
     except Exception as exc:
