@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from threading import Lock
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -167,3 +167,33 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
         },
     )
 
+
+@app.get("/kindle-image")
+async def get_kindle_home_image(request: Request, accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="playwright is not installed") from exc
+
+    target_url = str(request.url_for("get_kindle_home"))
+    target_url = f"{target_url}?accessKey={accessKey}"
+
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page(
+                    viewport={"width": 600, "height": 800},
+                    device_scale_factor=1,
+                )
+                await page.goto(target_url, wait_until="networkidle")
+                image_bytes = await page.screenshot(type="png", full_page=False)
+            finally:
+                await browser.close()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to capture kindle image: {exc}") from exc
+
+    return Response(content=image_bytes, media_type="image/png")
