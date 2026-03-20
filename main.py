@@ -70,46 +70,6 @@ def _build_hourly_series(slots: list[WeatherForecastSlot], max_items: int = 12) 
     return result
 
 
-def _build_daily_ui(slots: list, max_days: int = 8) -> list[dict]:
-    grouped: dict[str, dict] = {}
-    for slot in slots:
-        key = slot.fcst_date
-        day = grouped.setdefault(
-            key,
-            {
-                "date": key,
-                "min_temp": None,
-                "max_temp": None,
-                "sky_text": None,
-            },
-        )
-        for value in [slot.temp_c, slot.min_temp_c]:
-            if value is None:
-                continue
-            day["min_temp"] = value if day["min_temp"] is None else min(day["min_temp"], value)
-        for value in [slot.temp_c, slot.max_temp_c]:
-            if value is None:
-                continue
-            day["max_temp"] = value if day["max_temp"] is None else max(day["max_temp"], value)
-        if day["sky_text"] is None and slot.sky_text:
-            day["sky_text"] = slot.sky_text
-
-    result = []
-    for day in sorted(grouped.keys())[:max_days]:
-        dt_value = datetime.strptime(day, "%Y%m%d")
-        row = grouped[day]
-        result.append(
-            {
-                "weekday": WEEKDAY_KO[dt_value.weekday()],
-                "sky_text": row["sky_text"] or "맑음",
-                "max_temp": None if row["max_temp"] is None else int(round(float(row["max_temp"]))),
-                "min_temp": None if row["min_temp"] is None else int(round(float(row["min_temp"]))),
-            }
-        )
-    return result
-
-
-
 async def _get_weather_cached(now: datetime):
     global _weather_cache_value, _weather_cache_expires_at
     with _weather_cache_lock:
@@ -182,3 +142,28 @@ async def get_home(request: Request, accessKey: str | None = None):
             "now_label": now_label,
         },
     )
+
+
+@app.get("/kindle")
+async def get_kindle_home(request: Request, accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    now = datetime.now(KST)
+    weather = await _get_weather_cached(now)
+    bus_stops = await _get_bus_arrivals_cached(now)
+    air = await _get_air_condition_cached(now)
+    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+    now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
+    return templates.TemplateResponse(
+        request=request,
+        name="kindle_home.html",
+        context={
+            "bus_stops": bus_stops,
+            "weather": weather,
+            "air": air,
+            "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+            "now_label": now_label,
+        },
+    )
+
