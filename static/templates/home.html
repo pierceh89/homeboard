@@ -159,12 +159,12 @@
         >
           <svg
             id="weather-chart"
-            viewBox="0 0 1000 130"
-            class="w-full h-32 min-h-[128px] sm:h-36 lg:h-[15vh]"
+            viewBox="0 0 1000 160"
+            class="w-full h-32 min-h-[128px] sm:h-28 lg:h-[15vh]"
           ></svg>
           <div
             id="weather-axis"
-            class="mt-2 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
+            class="mt-1 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
           ></div>
         </section>
       </section>
@@ -293,8 +293,8 @@
           const min = Math.min(...fallback);
           const spread = max - min || 1;
           const width = 1000;
-          const top = 18;
-          const height = 105;
+          const top = 10;
+          const height = 150;
           const base = top + height;
           const maxLabels = 8;
 
@@ -310,13 +310,16 @@
             const y = base - ((value - min) / spread) * height;
             points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
             if (idx % step == 0) {
-              labels.push(
-                `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700">${Math.round(value)}${cfg.unit}</text>`,
-              );
-            } else {
-              labels.push(
-                `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700"></text>`,
-              );
+              if (idx == 0) {
+                const adjustedX = x + 25;
+                labels.push(
+                  `<text x="${adjustedX.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700">${Math.round(value)}${cfg.unit}</text>`,
+                );
+              } else {
+                labels.push(
+                  `<text x="${x.toFixed(2)}" y="${(y - 8).toFixed(2)}" text-anchor="middle" fill="#475569" font-size="16" font-weight="700">${Math.round(value)}${cfg.unit}</text>`,
+                );
+              }
             }
           });
 
