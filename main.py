@@ -301,7 +301,6 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
 
     now = datetime.now(KST)
     weather = await _get_weather_cached(now)
-    bus_stops = await _get_bus_arrivals_cached(now)
     air = await _get_air_condition_cached(now)
     mid = await _get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
@@ -311,7 +310,6 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
         request=request,
         name="kindle_home.html",
         context={
-            "bus_stops": bus_stops,
             "weather": weather,
             "air": air,
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),

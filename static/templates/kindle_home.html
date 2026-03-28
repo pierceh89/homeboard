@@ -71,9 +71,7 @@
   <body
     class="kindle-eink min-h-screen w-screen text-slate-800 flex items-start justify-center overflow-x-hidden px-2 py-2 sm:px-2 sm:py-2"
   >
-    <main
-      class="stage grid grid-cols-1 items-start gap-2 p-0 lg:grid-cols-2 lg:gap-2"
-    >
+    <main class="stage grid grid-cols-1 items-start gap-2 p-0">
       <section
         class="weather-card rounded-2xl p-2 text-slate-800 grid grid-rows-[auto_auto_1fr] gap-2 shadow-sm sm:p-2 lg:p-2"
       >
@@ -159,38 +157,40 @@
         </header>
 
         <section
-          class="chart-wrap mt-1 rounded-xl px-1 py-1 sm:px-2 sm:py-2"
+          class="chart-wrap rounded-xl px-1 py-1 sm:px-2 sm:py-2"
           data-hourly="{{ hourly_series }}"
         >
           <svg
             id="weather-chart"
             viewBox="0 0 1000 160"
-            class="w-full h-28 min-h-[115px] sm:h-28 lg:h-[15vh]"
+            class="w-full h-40 min-h-[160px] sm:h-40"
           ></svg>
           <div
             id="weather-axis"
-            class="mt-1 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
+            class="mt-1 grid gap-1 text-[clamp(0.66rem,2.5vw,1rem)] text-slate-500"
           ></div>
         </section>
 
-        <section class="weekly-strip mx-auto w-full rounded-xl px-2 py-2 sm:px-2 sm:py-2">
+        <section
+          class="weekly-strip mx-auto w-full rounded-xl px-2.5 py-2.5 sm:px-2.5 sm:py-2.5"
+        >
           <div class="grid grid-cols-8 gap-1">
             {% for day in weekly_outlook %}
             <article
-              class="w-full rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-1 py-1 text-center"
+              class="w-full rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-1.5 py-1.5 text-center"
             >
               <p
-                class="text-[clamp(0.58rem,1.8vw,0.8rem)] font-semibold leading-tight text-slate-700"
+                class="text-[clamp(0.7rem,2.1vw,0.95rem)] font-semibold leading-tight text-slate-700"
               >
                 {{ day.weekday }}
               </p>
               <p
-                class="mt-1 text-[clamp(0.54rem,1.65vw,0.76rem)] leading-tight text-slate-500"
+                class="mt-1 text-[clamp(0.66rem,2vw,0.9rem)] leading-tight text-slate-500"
               >
                 {{ day.sky_text }}
               </p>
               <p
-                class="mt-1 whitespace-nowrap text-[clamp(0.52rem,1.55vw,0.74rem)] font-semibold tracking-tight text-slate-800"
+                class="mt-1 whitespace-nowrap text-[clamp(0.62rem,1.85vw,0.86rem)] font-semibold tracking-tight text-slate-800"
               >
                 {{ day.max_temp if day.max_temp is not none else '-' }}°/{{
                 day.min_temp if day.min_temp is not none else '-' }}°
@@ -201,115 +201,33 @@
         </section>
       </section>
 
-      <div class="grid gap-2 lg:gap-2">
-        <section
-          class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
-        >
-          <section aria-label="오늘 일정">
-            <article class="calendar-card rounded-xl px-3 py-3 sm:px-4">
-              <header class="mb-2 flex items-center justify-between gap-2">
-                <h2
-                  class="text-[clamp(0.98rem,3.3vw,1.16rem)] font-semibold tracking-tight text-slate-800"
-                >
-                  오늘 일정
-                </h2>
-                <p
-                  id="calendar-date"
-                  class="text-[clamp(0.78rem,2.7vw,0.92rem)] text-slate-500 font-medium"
-                >
-                  불러오는 중...
-                </p>
-              </header>
-              <div
-                id="calendar-list"
-                class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]"
+      <section
+        class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
+      >
+        <section aria-label="오늘 일정">
+          <article class="calendar-card rounded-xl px-3 py-3 sm:px-4">
+            <header class="mb-2 flex items-center justify-between gap-2">
+              <h2
+                class="text-[clamp(0.98rem,3.3vw,1.16rem)] font-semibold tracking-tight text-slate-800"
               >
-                <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
-              </div>
-            </article>
-          </section>
-        </section>
-
-        <section
-          class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
-        >
-          <!-- <h1
-            class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
-          >
-            버스 도착정보 영역 (우측 1/2)
-          </h1> -->
-
-          <section
-            class="space-y-2 sm:space-y-2"
-            aria-label="도착 예정 버스 리스트"
-          >
-          {% for stop in bus_stops %}
-          <article
-            class="rounded-xl border border-[#d8e5fb] bg-white/85 px-3 py-3 sm:px-4"
-          >
-            <p
-              class="mb-2 text-[clamp(0.8rem,2.9vw,1rem)] text-slate-500 font-medium"
+                오늘 일정
+              </h2>
+              <p
+                id="calendar-date"
+                class="text-[clamp(0.78rem,2.7vw,0.92rem)] text-slate-500 font-medium"
+              >
+                불러오는 중...
+              </p>
+            </header>
+            <div
+              id="calendar-list"
+              class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]"
             >
-              {{ stop.stationName }} ({{ stop.stationId }})
-            </p>
-            {% if stop.arrivals %}
-            <div class="mt-1 grid gap-2">
-              {% for bus in stop.arrivals %}
-              <div
-                class="rounded-xl border border-[#d8e5fb] bg-[#f7faff] px-3 py-2 space-y-1 sm:px-4 sm:py-3"
-              >
-                <p
-                  class="text-[clamp(0.98rem,3.4vw,1.2rem)] font-semibold leading-snug text-slate-800"
-                >
-                  {{ bus.routeName }} | {{ bus.routeDestName }} ({{
-                  bus.routeTypeName or '유형미정' }})
-                </p>
-                {% set first_has_plate = bus.firstVehicle.plateNo is not none
-                and bus.firstVehicle.plateNo|trim != '' %} {% set
-                second_has_plate = bus.secondVehicle.plateNo is not none and
-                bus.secondVehicle.plateNo|trim != '' %} {% if not
-                first_has_plate and not second_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
-                >
-                  도착 예정 정보 없음
-                </p>
-                {% else %} {% if first_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
-                >
-                  1호차 {{ bus.firstVehicle.predictTime if
-                  bus.firstVehicle.predictTime is not none else '-' }}분 / {{
-                  bus.firstVehicle.locationNo if bus.firstVehicle.locationNo is
-                  not none else '-' }}정류장 전 / 혼잡도 {{
-                  bus.firstVehicle.crowdedName or '정보없음' }}
-                </p>
-                {% endif %} {% if second_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
-                >
-                  2호차 {{ bus.secondVehicle.predictTime if
-                  bus.secondVehicle.predictTime is not none else '-' }}분 / {{
-                  bus.secondVehicle.locationNo if bus.secondVehicle.locationNo
-                  is not none else '-' }}정류장 전 / 혼잡도 {{
-                  bus.secondVehicle.crowdedName or '정보없음' }}
-                </p>
-                {% endif %} {% endif %}
-              </div>
-              {% endfor %}
+              <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
             </div>
-            {% else %}
-            <p
-              class="mt-2 text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
-            >
-              도착 정보가 없습니다.
-            </p>
-            {% endif %}
           </article>
-          {% endfor %}
-          </section>
         </section>
-      </div>
+      </section>
     </main>
     <script>
       (() => {
@@ -457,7 +375,9 @@
             } else {
               calendarDate.textContent = "오늘";
             }
-            renderCalendarItems(Array.isArray(data?.schedules) ? data.schedules : []);
+            renderCalendarItems(
+              Array.isArray(data?.schedules) ? data.schedules : [],
+            );
           } catch (_error) {
             calendarDate.textContent = "일정 오류";
             calendarList.innerHTML =

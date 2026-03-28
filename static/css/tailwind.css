@@ -223,6 +223,9 @@
   .h-32 {
     height: calc(var(--spacing) * 32);
   }
+  .h-40 {
+    height: calc(var(--spacing) * 40);
+  }
   .h-\[58px\] {
     height: 58px;
   }
@@ -234,6 +237,9 @@
   }
   .min-h-\[128px\] {
     min-height: 128px;
+  }
+  .min-h-\[160px\] {
+    min-height: 160px;
   }
   .min-h-screen {
     min-height: 100vh;
@@ -408,6 +414,9 @@
   .px-2 {
     padding-inline: calc(var(--spacing) * 2);
   }
+  .px-2\.5 {
+    padding-inline: calc(var(--spacing) * 2.5);
+  }
   .px-3 {
     padding-inline: calc(var(--spacing) * 3);
   }
@@ -422,6 +431,9 @@
   }
   .py-2 {
     padding-block: calc(var(--spacing) * 2);
+  }
+  .py-2\.5 {
+    padding-block: calc(var(--spacing) * 2.5);
   }
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
@@ -446,6 +458,9 @@
   }
   .text-\[clamp\(0\.6rem\,1\.85vw\,0\.82rem\)\] {
     font-size: clamp(0.6rem, 1.85vw, 0.82rem);
+  }
+  .text-\[clamp\(0\.7rem\,2\.1vw\,0\.95rem\)\] {
+    font-size: clamp(0.7rem, 2.1vw, 0.95rem);
   }
   .text-\[clamp\(0\.7rem\,2\.35vw\,0\.88rem\)\] {
     font-size: clamp(0.7rem, 2.35vw, 0.88rem);
@@ -480,11 +495,20 @@
   .text-\[clamp\(0\.58rem\,1\.8vw\,0\.8rem\)\] {
     font-size: clamp(0.58rem, 1.8vw, 0.8rem);
   }
+  .text-\[clamp\(0\.62rem\,1\.85vw\,0\.86rem\)\] {
+    font-size: clamp(0.62rem, 1.85vw, 0.86rem);
+  }
   .text-\[clamp\(0\.62rem\,2\.15vw\,0\.88rem\)\] {
     font-size: clamp(0.62rem, 2.15vw, 0.88rem);
   }
   .text-\[clamp\(0\.64rem\,1\.95vw\,0\.85rem\)\] {
     font-size: clamp(0.64rem, 1.95vw, 0.85rem);
+  }
+  .text-\[clamp\(0\.66rem\,2\.5vw\,1rem\)\] {
+    font-size: clamp(0.66rem, 2.5vw, 1rem);
+  }
+  .text-\[clamp\(0\.66rem\,2vw\,0\.9rem\)\] {
+    font-size: clamp(0.66rem, 2vw, 0.9rem);
   }
   .text-\[clamp\(0\.72rem\,2\.5vw\,0\.9rem\)\] {
     font-size: clamp(0.72rem, 2.5vw, 0.9rem);
@@ -610,6 +634,11 @@
       height: calc(var(--spacing) * 28);
     }
   }
+  .sm\:h-40 {
+    @media (width >= 40rem) {
+      height: calc(var(--spacing) * 40);
+    }
+  }
   .sm\:gap-2 {
     @media (width >= 40rem) {
       gap: calc(var(--spacing) * 2);
@@ -653,6 +682,11 @@
       padding-inline: calc(var(--spacing) * 2);
     }
   }
+  .sm\:px-2\.5 {
+    @media (width >= 40rem) {
+      padding-inline: calc(var(--spacing) * 2.5);
+    }
+  }
   .sm\:px-3 {
     @media (width >= 40rem) {
       padding-inline: calc(var(--spacing) * 3);
@@ -671,6 +705,11 @@
   .sm\:py-2 {
     @media (width >= 40rem) {
       padding-block: calc(var(--spacing) * 2);
+    }
+  }
+  .sm\:py-2\.5 {
+    @media (width >= 40rem) {
+      padding-block: calc(var(--spacing) * 2.5);
     }
   }
   .sm\:py-3 {
