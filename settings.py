@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     bus_arrival: BusArrivalRequest
     air: AirConditionRequest
 
+    naver_caldav_url: str = Field(default="https://caldav.calendar.naver.com", validation_alias="NAVER_CALDAV_URL")
+    naver_caldav_username: str = Field(default="", validation_alias="NAVER_CALDAV_USERNAME")
+    naver_caldav_password: str = Field(default="", validation_alias="NAVER_CALDAV_PASSWORD")
+    naver_caldav_calendar_name: str = Field(default="", validation_alias="NAVER_CALDAV_CALENDAR_NAME")
+
     @classmethod
     def settings_customise_sources(
         cls,

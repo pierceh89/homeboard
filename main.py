@@ -4,6 +4,7 @@ from threading import Lock
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -11,6 +12,7 @@ from air import AirConditionResponse, get_air_condition
 from api import BusArrivalStop, get_bus_arrivals
 from settings import get_settings
 from weather import WeatherForecastSlot, WeatherResponse, get_weather
+from naver_calendar import get_naver_today_events
 
 import json
 
@@ -27,6 +29,22 @@ WEATHER_CACHE_TTL = timedelta(minutes=30)
 BUS_CACHE_TTL = timedelta(minutes=1)
 AIR_CACHE_TTL = timedelta(minutes=15)
 settings = get_settings()
+
+
+class TodayScheduleItem(BaseModel):
+    uid: str | None
+    summary: str
+    start: str
+    end: str
+    is_all_day: bool
+
+
+class TodayScheduleResponse(BaseModel):
+    date: str
+    timezone: str
+    total: int
+    schedules: list[TodayScheduleItem]
+
 
 _weather_cache_lock = Lock()
 _weather_cache_value: WeatherResponse | None = None
@@ -212,3 +230,42 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
         raise HTTPException(status_code=500, detail=f"failed to capture kindle image: {exc}") from exc
 
     return Response(content=image_bytes, media_type="image/png")
+
+
+@app.get("/api/calendar/naver/today", response_model=TodayScheduleResponse)
+async def get_naver_calendar_today(accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    if not settings.naver_caldav_username or not settings.naver_caldav_password:
+        raise HTTPException(status_code=500, detail="NAVER CalDAV credentials are not configured")
+
+    try:
+        events = get_naver_today_events(
+            caldav_url=settings.naver_caldav_url,
+            username=settings.naver_caldav_username,
+            password=settings.naver_caldav_password,
+            calendar_name=settings.naver_caldav_calendar_name or None,
+            timezone=KST,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"failed to fetch NAVER Calendar events: {exc}") from exc
+
+    now = datetime.now(KST)
+    schedules = [
+        TodayScheduleItem(
+            uid=event.uid,
+            summary=event.summary,
+            start=event.start.isoformat(),
+            end=event.end.isoformat(),
+            is_all_day=event.is_all_day,
+        )
+        for event in events
+    ]
+
+    return TodayScheduleResponse(
+        date=now.date().isoformat(),
+        timezone=str(KST),
+        total=len(schedules),
+        schedules=schedules,
+    )
