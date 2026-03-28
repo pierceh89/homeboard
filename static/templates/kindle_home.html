@@ -30,6 +30,14 @@
         background: var(--eink-surface-muted);
         border: 2px solid var(--eink-border);
       }
+      .weekly-strip {
+        background: var(--eink-surface-muted);
+        border: 2px solid var(--eink-border);
+      }
+      .calendar-card {
+        border: 2px solid var(--eink-border);
+        background: var(--eink-surface-muted);
+      }
       body.kindle-eink {
         background: var(--eink-bg);
         color: var(--eink-text);
@@ -164,21 +172,77 @@
             class="mt-1 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
           ></div>
         </section>
+
+        <section class="weekly-strip mx-auto w-full rounded-xl px-2 py-2 sm:px-2 sm:py-2">
+          <div class="grid grid-cols-8 gap-1">
+            {% for day in weekly_outlook %}
+            <article
+              class="w-full rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-1 py-1 text-center"
+            >
+              <p
+                class="text-[clamp(0.58rem,1.8vw,0.8rem)] font-semibold leading-tight text-slate-700"
+              >
+                {{ day.weekday }}
+              </p>
+              <p
+                class="mt-1 text-[clamp(0.54rem,1.65vw,0.76rem)] leading-tight text-slate-500"
+              >
+                {{ day.sky_text }}
+              </p>
+              <p
+                class="mt-1 whitespace-nowrap text-[clamp(0.52rem,1.55vw,0.74rem)] font-semibold tracking-tight text-slate-800"
+              >
+                {{ day.max_temp if day.max_temp is not none else '-' }}°/{{
+                day.min_temp if day.min_temp is not none else '-' }}°
+              </p>
+            </article>
+            {% endfor %}
+          </div>
+        </section>
       </section>
 
-      <section
-        class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
-      >
-        <!-- <h1
-          class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
+      <div class="grid gap-2 lg:gap-2">
+        <section
+          class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
         >
-          버스 도착정보 영역 (우측 1/2)
-        </h1> -->
+          <section aria-label="오늘 일정">
+            <article class="calendar-card rounded-xl px-3 py-3 sm:px-4">
+              <header class="mb-2 flex items-center justify-between gap-2">
+                <h2
+                  class="text-[clamp(0.98rem,3.3vw,1.16rem)] font-semibold tracking-tight text-slate-800"
+                >
+                  오늘 일정
+                </h2>
+                <p
+                  id="calendar-date"
+                  class="text-[clamp(0.78rem,2.7vw,0.92rem)] text-slate-500 font-medium"
+                >
+                  불러오는 중...
+                </p>
+              </header>
+              <div
+                id="calendar-list"
+                class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]"
+              >
+                <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
+              </div>
+            </article>
+          </section>
+        </section>
 
         <section
-          class="space-y-2 sm:space-y-2"
-          aria-label="도착 예정 버스 리스트"
+          class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
         >
+          <!-- <h1
+            class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
+          >
+            버스 도착정보 영역 (우측 1/2)
+          </h1> -->
+
+          <section
+            class="space-y-2 sm:space-y-2"
+            aria-label="도착 예정 버스 리스트"
+          >
           {% for stop in bus_stops %}
           <article
             class="rounded-xl border border-[#d8e5fb] bg-white/85 px-3 py-3 sm:px-4"
@@ -243,14 +307,17 @@
             {% endif %}
           </article>
           {% endfor %}
+          </section>
         </section>
-      </section>
+      </div>
     </main>
     <script>
       (() => {
         const chartBox = document.querySelector("[data-hourly]");
         const svg = document.getElementById("weather-chart");
         const axis = document.getElementById("weather-axis");
+        const calendarDate = document.getElementById("calendar-date");
+        const calendarList = document.getElementById("calendar-list");
         if (!chartBox || !svg || !axis) return;
 
         const rows = JSON.parse(chartBox.dataset.hourly || "[]");
@@ -335,7 +402,71 @@
           axis.innerHTML = row_label_list.join("");
         }
 
+        function formatEventTime(event) {
+          if (event.is_all_day) return "하루 종일";
+          const start = new Date(event.start);
+          const end = new Date(event.end);
+          const formatter = new Intl.DateTimeFormat("ko-KR", {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+          return `${formatter.format(start)} - ${formatter.format(end)}`;
+        }
+
+        function renderCalendarItems(items) {
+          if (!calendarList) return;
+          if (!items || items.length === 0) {
+            calendarList.innerHTML =
+              '<p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>';
+            return;
+          }
+
+          calendarList.innerHTML = items
+            .map((event) => {
+              const title = (event.summary || "").trim() || "제목 없는 일정";
+              const timeText = formatEventTime(event);
+              return `
+                <div class="rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-3 py-2 sm:px-4 sm:py-2">
+                  <p class="font-semibold text-slate-800 leading-snug">${title}</p>
+                  <p class="mt-1 text-slate-500">${timeText}</p>
+                </div>
+              `;
+            })
+            .join("");
+        }
+
+        async function loadCalendar() {
+          if (!calendarList || !calendarDate) return;
+          try {
+            const query = window.location.search || "";
+            const res = await fetch(`/api/calendar/naver/today${query}`);
+            if (!res.ok) {
+              throw new Error(`status:${res.status}`);
+            }
+
+            const data = await res.json();
+            const targetDate = data?.date;
+            if (targetDate) {
+              const parsedDate = new Date(`${targetDate}T00:00:00+09:00`);
+              const label = new Intl.DateTimeFormat("ko-KR", {
+                month: "numeric",
+                day: "numeric",
+                weekday: "short",
+              }).format(parsedDate);
+              calendarDate.textContent = label;
+            } else {
+              calendarDate.textContent = "오늘";
+            }
+            renderCalendarItems(Array.isArray(data?.schedules) ? data.schedules : []);
+          } catch (_error) {
+            calendarDate.textContent = "일정 오류";
+            calendarList.innerHTML =
+              '<p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>';
+          }
+        }
+
         render("temp");
+        loadCalendar();
       })();
     </script>
   </body>

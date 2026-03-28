@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from air import AirConditionResponse, get_air_condition
 from api import BusArrivalStop, get_bus_arrivals
+from mid_forecast import MidForecastResponse, get_mid_forecast
 from settings import get_settings
 from weather import WeatherForecastSlot, WeatherResponse, get_weather
 from naver_calendar import get_naver_today_events
@@ -28,6 +29,7 @@ KST = ZoneInfo("Asia/Seoul")
 WEATHER_CACHE_TTL = timedelta(minutes=30)
 BUS_CACHE_TTL = timedelta(minutes=1)
 AIR_CACHE_TTL = timedelta(minutes=15)
+MID_CACHE_TTL = timedelta(hours=6)
 settings = get_settings()
 
 
@@ -57,6 +59,10 @@ _bus_cache_expires_at: datetime | None = None
 _air_cache_lock = Lock()
 _air_cache_value: AirConditionResponse | None = None
 _air_cache_expires_at: datetime | None = None
+
+_mid_cache_lock = Lock()
+_mid_cache_value: MidForecastResponse | None = None
+_mid_cache_expires_at: datetime | None = None
 
 
 def _slot_dt(slot) -> datetime | None:
@@ -100,6 +106,92 @@ def _build_hourly_series(slots: list[WeatherForecastSlot], max_items: int = 12) 
             }
         )
     return result
+
+
+def _format_mid_sky(text: str | None) -> str | None:
+    if text is None:
+        return None
+    compact = text.replace(" ", "")
+    if "비" in compact:
+        return "비"
+    if "눈" in compact:
+        return "눈"
+    if "흐" in compact:
+        return "흐림"
+    if "구름" in compact:
+        return "구름많음"
+    if "맑" in compact:
+        return "맑음"
+    return text
+
+
+def _build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForecastResponse | None) -> list[dict]:
+    base_date = now.date()
+    by_date: dict[str, dict] = {}
+
+    for slot in weather.forecasts:
+        dt_value = _slot_dt(slot)
+        if dt_value is None:
+            continue
+        date_key = dt_value.strftime("%Y-%m-%d")
+        day = by_date.setdefault(
+            date_key,
+            {
+                "min_temp": None,
+                "max_temp": None,
+                "sky_text": None,
+                "rainy": False,
+            },
+        )
+
+        if slot.temp_c is not None:
+            temp_int = int(round(slot.temp_c))
+            day["min_temp"] = temp_int if day["min_temp"] is None else min(day["min_temp"], temp_int)
+            day["max_temp"] = temp_int if day["max_temp"] is None else max(day["max_temp"], temp_int)
+
+        if slot.precip_type_text and slot.precip_type_text != "없음":
+            day["rainy"] = True
+            day["sky_text"] = slot.precip_type_text
+        elif day["sky_text"] is None and slot.sky_text:
+            day["sky_text"] = slot.sky_text
+
+    weekly: list[dict] = []
+    mid_by_offset = {d.day_offset: d for d in (mid.daily if mid is not None else [])}
+
+    for offset in range(0, 8):
+        target_date = base_date + timedelta(days=offset)
+        date_key = target_date.strftime("%Y-%m-%d")
+        weekday = WEEKDAY_KO[target_date.weekday()]
+
+        short = by_date.get(date_key)
+        min_temp = short.get("min_temp") if short else None
+        max_temp = short.get("max_temp") if short else None
+        sky_text = short.get("sky_text") if short else None
+
+        if offset >= 4:
+            mid_day = mid_by_offset.get(offset)
+            if mid_day is not None:
+                if min_temp is None:
+                    min_temp = mid_day.min_temp
+                if max_temp is None:
+                    max_temp = mid_day.max_temp
+                if sky_text is None:
+                    sky_text = _format_mid_sky(mid_day.afternoon_sky or mid_day.sky or mid_day.morning_sky)
+
+        if sky_text is None:
+            sky_text = "-"
+
+        weekly.append(
+            {
+                "date": date_key,
+                "weekday": weekday,
+                "sky_text": sky_text,
+                "max_temp": max_temp,
+                "min_temp": min_temp,
+            }
+        )
+
+    return weekly
 
 
 async def _get_weather_cached(now: datetime):
@@ -147,6 +239,29 @@ async def _get_air_condition_cached(now: datetime):
     return air
 
 
+async def _get_mid_forecast_cached(now: datetime):
+    global _mid_cache_value, _mid_cache_expires_at
+    with _mid_cache_lock:
+        if _mid_cache_value is not None and _mid_cache_expires_at is not None and now < _mid_cache_expires_at:
+            return _mid_cache_value
+
+    try:
+        mid = await get_mid_forecast(
+            now=now,
+            land_reg_id=settings.land_reg_id,
+            temp_reg_id=settings.temp_reg_id,
+            # stn_id="109",
+        )
+    except Exception:
+        mid = None
+
+    with _mid_cache_lock:
+        _mid_cache_value = mid
+        _mid_cache_expires_at = now + MID_CACHE_TTL
+
+    return mid
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -161,7 +276,9 @@ async def get_home(request: Request, accessKey: str | None = None):
     weather = await _get_weather_cached(now)
     bus_stops = await _get_bus_arrivals_cached(now)
     air = await _get_air_condition_cached(now)
+    mid = await _get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+    weekly_outlook = _build_weekly_outlook(now, weather, mid)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
     return templates.TemplateResponse(
         request=request,
@@ -171,6 +288,7 @@ async def get_home(request: Request, accessKey: str | None = None):
             "weather": weather,
             "air": air,
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+            "weekly_outlook": weekly_outlook,
             "now_label": now_label,
         },
     )
@@ -185,7 +303,9 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
     weather = await _get_weather_cached(now)
     bus_stops = await _get_bus_arrivals_cached(now)
     air = await _get_air_condition_cached(now)
+    mid = await _get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+    weekly_outlook = _build_weekly_outlook(now, weather, mid)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
     return templates.TemplateResponse(
         request=request,
@@ -195,6 +315,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
             "weather": weather,
             "air": air,
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+            "weekly_outlook": weekly_outlook,
             "now_label": now_label,
         },
     )

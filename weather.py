@@ -8,6 +8,8 @@ from settings import WeatherRequest, get_settings
 
 FORECAST_TIMES = [2, 5, 8, 11, 14, 17, 20, 23]
 WEATHER_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
+WEATHER_NUM_OF_ROWS = 200
+WEATHER_MAX_PAGES = 10
 
 SKY_MAP = {
     1: "맑음",
@@ -179,14 +181,19 @@ def _normalize_forecasts(items: list[dict]) -> list[WeatherForecastSlot]:
     ]
 
 
-async def _fetch_weather_page(base_date: str, base_time: str, request: WeatherRequest, page_no: int) -> list[dict] | None:
+async def _fetch_weather_page(
+    base_date: str,
+    base_time: str,
+    request: WeatherRequest,
+    page_no: int,
+) -> tuple[list[dict] | None, int | None]:
     settings = get_settings()
     payload = await fetch_json(
         url=WEATHER_URL,
         params={
             "serviceKey": settings.public_api_key,
             "pageNo": page_no,
-            "numOfRows": 200,
+            "numOfRows": WEATHER_NUM_OF_ROWS,
             "dataType": "JSON",
             "base_date": base_date,
             "base_time": base_time,
@@ -195,18 +202,22 @@ async def _fetch_weather_page(base_date: str, base_time: str, request: WeatherRe
         },
     )
     if payload is None:
-        return None
+        return None, None
 
-    items = payload.get("response", {}).get("body", {}).get("items", {}).get("item", [])
-    return items if isinstance(items, list) else []
+    body = payload.get("response", {}).get("body", {})
+    raw_total_count = body.get("totalCount")
+    total_count = to_int(raw_total_count)
+    items = body.get("items", {}).get("item", [])
+    return (items if isinstance(items, list) else []), total_count
 
 
 async def get_weather(now: datetime, request: WeatherRequest) -> WeatherResponse:
     base_date, base_time = _select_base(now)
     total_items: list[dict] = []
+    total_count: int | None = None
 
-    for page_no in range(1, 3):
-        items = await _fetch_weather_page(base_date, base_time, request, page_no)
+    for page_no in range(1, WEATHER_MAX_PAGES + 1):
+        items, page_total_count = await _fetch_weather_page(base_date, base_time, request, page_no)
         if items is None:
             return WeatherResponse.empty(
                 region=request.region,
@@ -215,6 +226,13 @@ async def get_weather(now: datetime, request: WeatherRequest) -> WeatherResponse
                 now=now,
             )
         total_items.extend(items)
+        if total_count is None and page_total_count is not None:
+            total_count = page_total_count
+
+        if total_count is not None and len(total_items) >= total_count:
+            break
+        if len(items) < WEATHER_NUM_OF_ROWS:
+            break
 
     forecasts = _normalize_forecasts(total_items)
     return WeatherResponse(

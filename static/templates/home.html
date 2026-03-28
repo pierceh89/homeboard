@@ -33,6 +33,14 @@
         color: #1e3a8a;
         border-bottom: 4px solid #facc15;
       }
+      .calendar-card {
+        border: 1px solid #d8e5fb;
+        background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+      }
+      .weekly-strip {
+        background: linear-gradient(180deg, #f6f9ff 0%, #eef4ff 100%);
+        border: 1px solid #d8e5fb;
+      }
     </style>
   </head>
   <body
@@ -167,87 +175,144 @@
             class="mt-1 grid gap-1 text-[clamp(0.55rem,2.2vw,0.8rem)] text-slate-500"
           ></div>
         </section>
-      </section>
 
-      <section
-        class="weather-card rounded-2xl p-3 text-slate-800 shadow-sm sm:p-3 lg:p-3"
-      >
-        <!-- <h1
-          class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
-        >
-          버스 도착정보 영역 (우측 1/2)
-        </h1> -->
-
-        <section
-          class="space-y-3 sm:space-y-4"
-          aria-label="도착 예정 버스 리스트"
-        >
-          {% for stop in bus_stops %}
-          <article
-            class="rounded-xl border border-[#d8e5fb] bg-white/85 px-4 py-4 sm:px-5"
-          >
-            <p
-              class="mb-3 text-[clamp(0.82rem,3vw,1.05rem)] text-slate-500 font-medium"
+        <section class="weekly-strip mx-auto w-full rounded-xl px-2 py-2 sm:px-3 sm:py-3">
+          <div class="grid grid-cols-8 gap-1 sm:gap-2">
+            {% for day in weekly_outlook %}
+            <article
+              class="w-full rounded-lg border border-[#d8e5fb] bg-white/80 px-1.5 py-1.5 text-center sm:px-2 sm:py-2"
             >
-              {{ stop.stationName }} ({{ stop.stationId }})
-            </p>
-            {% if stop.arrivals %}
-            <div class="mt-2 grid gap-3">
-              {% for bus in stop.arrivals %}
-              <div
-                class="rounded-xl border border-[#d8e5fb] bg-[#f7faff] px-4 py-3 space-y-2 sm:px-5 sm:py-4"
+              <p
+                class="text-[clamp(0.64rem,1.95vw,0.85rem)] font-semibold leading-tight text-slate-700"
               >
-                <p
-                  class="text-[clamp(0.98rem,3.4vw,1.2rem)] font-semibold leading-snug text-slate-800"
-                >
-                  {{ bus.routeName }} | {{ bus.routeDestName }} ({{
-                  bus.routeTypeName or '유형미정' }})
-                </p>
-                {% set first_has_plate = bus.firstVehicle.plateNo is not none
-                and bus.firstVehicle.plateNo|trim != '' %} {% set
-                second_has_plate = bus.secondVehicle.plateNo is not none and
-                bus.secondVehicle.plateNo|trim != '' %} {% if not
-                first_has_plate and not second_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
-                >
-                  도착 예정 정보 없음
-                </p>
-                {% else %} {% if first_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
-                >
-                  1호차 {{ bus.firstVehicle.predictTime if
-                  bus.firstVehicle.predictTime is not none else '-' }}분 / {{
-                  bus.firstVehicle.locationNo if bus.firstVehicle.locationNo is
-                  not none else '-' }}정류장 전 / 혼잡도 {{
-                  bus.firstVehicle.crowdedName or '정보없음' }}
-                </p>
-                {% endif %} {% if second_has_plate %}
-                <p
-                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
-                >
-                  2호차 {{ bus.secondVehicle.predictTime if
-                  bus.secondVehicle.predictTime is not none else '-' }}분 / {{
-                  bus.secondVehicle.locationNo if bus.secondVehicle.locationNo
-                  is not none else '-' }}정류장 전 / 혼잡도 {{
-                  bus.secondVehicle.crowdedName or '정보없음' }}
-                </p>
-                {% endif %} {% endif %}
-              </div>
-              {% endfor %}
-            </div>
-            {% else %}
-            <p
-              class="mt-2 text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
-            >
-              도착 정보가 없습니다.
-            </p>
-            {% endif %}
-          </article>
-          {% endfor %}
+                {{ day.weekday }}
+              </p>
+              <p
+                class="mt-1 text-[clamp(0.6rem,1.85vw,0.82rem)] leading-tight text-slate-600"
+              >
+                {{ day.sky_text }}
+              </p>
+              <p
+                class="mt-1 whitespace-nowrap text-[clamp(0.56rem,1.75vw,0.8rem)] font-semibold tracking-tight text-slate-800"
+              >
+                {{ day.max_temp if day.max_temp is not none else '-' }}°/{{
+                day.min_temp if day.min_temp is not none else '-' }}°
+              </p>
+            </article>
+            {% endfor %}
+          </div>
         </section>
       </section>
+
+      <div class="grid gap-3 lg:gap-4">
+        <section
+          class="weather-card rounded-2xl p-3 text-slate-800 shadow-sm sm:p-3 lg:p-3"
+        >
+          <section aria-label="오늘 일정">
+            <article class="calendar-card rounded-xl px-4 py-4 sm:px-5">
+              <header class="mb-3 flex items-center justify-between gap-3">
+                <h2
+                  class="text-[clamp(1rem,3.5vw,1.18rem)] font-semibold tracking-tight text-slate-800"
+                >
+                  오늘 일정
+                </h2>
+                <p
+                  id="calendar-date"
+                  class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 font-medium"
+                >
+                  불러오는 중...
+                </p>
+              </header>
+              <div
+                id="calendar-list"
+                class="grid gap-2 text-[clamp(0.82rem,3vw,0.95rem)]"
+              >
+                <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section
+          class="weather-card rounded-2xl p-3 text-slate-800 shadow-sm sm:p-3 lg:p-3"
+        >
+          <!-- <h1
+            class="border-b-2 border-slate-300 pb-[1.2%] text-[clamp(1.2rem,2.1vw,2.3rem)] font-bold tracking-wide"
+          >
+            버스 도착정보 영역 (우측 1/2)
+          </h1> -->
+
+          <section
+            class="space-y-3 sm:space-y-4"
+            aria-label="도착 예정 버스 리스트"
+          >
+            {% for stop in bus_stops %}
+            <article
+              class="rounded-xl border border-[#d8e5fb] bg-white/85 px-4 py-4 sm:px-5"
+            >
+              <p
+                class="mb-3 text-[clamp(0.82rem,3vw,1.05rem)] text-slate-500 font-medium"
+              >
+                {{ stop.stationName }} ({{ stop.stationId }})
+              </p>
+              {% if stop.arrivals %}
+              <div class="mt-2 grid gap-3">
+                {% for bus in stop.arrivals %}
+                <div
+                  class="rounded-xl border border-[#d8e5fb] bg-[#f7faff] px-4 py-3 space-y-2 sm:px-5 sm:py-4"
+                >
+                  <p
+                    class="text-[clamp(0.98rem,3.4vw,1.2rem)] font-semibold leading-snug text-slate-800"
+                  >
+                    {{ bus.routeName }} | {{ bus.routeDestName }} ({{
+                    bus.routeTypeName or '유형미정' }})
+                  </p>
+                  {% set first_has_plate = bus.firstVehicle.plateNo is not none
+                  and bus.firstVehicle.plateNo|trim != '' %} {% set
+                  second_has_plate = bus.secondVehicle.plateNo is not none and
+                  bus.secondVehicle.plateNo|trim != '' %} {% if not
+                  first_has_plate and not second_has_plate %}
+                  <p
+                    class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
+                  >
+                    도착 예정 정보 없음
+                  </p>
+                  {% else %} {% if first_has_plate %}
+                  <p
+                    class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
+                  >
+                    1호차 {{ bus.firstVehicle.predictTime if
+                    bus.firstVehicle.predictTime is not none else '-' }}분 / {{
+                    bus.firstVehicle.locationNo if bus.firstVehicle.locationNo
+                    is not none else '-' }}정류장 전 / 혼잡도 {{
+                    bus.firstVehicle.crowdedName or '정보없음' }}
+                  </p>
+                  {% endif %} {% if second_has_plate %}
+                  <p
+                    class="text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-700 leading-6"
+                  >
+                    2호차 {{ bus.secondVehicle.predictTime if
+                    bus.secondVehicle.predictTime is not none else '-' }}분 / {{
+                    bus.secondVehicle.locationNo if bus.secondVehicle.locationNo
+                    is not none else '-' }}정류장 전 / 혼잡도 {{
+                    bus.secondVehicle.crowdedName or '정보없음' }}
+                  </p>
+                  {% endif %} {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p
+                class="mt-2 text-[clamp(0.8rem,2.8vw,0.95rem)] text-slate-500 leading-6"
+              >
+                도착 정보가 없습니다.
+              </p>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </section>
+        </section>
+      </div>
     </main>
     <script>
       (() => {
@@ -255,6 +320,8 @@
         const svg = document.getElementById("weather-chart");
         const axis = document.getElementById("weather-axis");
         const tabs = Array.from(document.querySelectorAll(".weather-tab"));
+        const calendarDate = document.getElementById("calendar-date");
+        const calendarList = document.getElementById("calendar-list");
         if (!chartBox || !svg || !axis) return;
 
         const rows = JSON.parse(chartBox.dataset.hourly || "[]");
@@ -351,7 +418,73 @@
           });
         });
 
+        function formatEventTime(event) {
+          if (event.is_all_day) return "하루 종일";
+          const start = new Date(event.start);
+          const end = new Date(event.end);
+          const formatter = new Intl.DateTimeFormat("ko-KR", {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+          return `${formatter.format(start)} - ${formatter.format(end)}`;
+        }
+
+        function renderCalendarItems(items) {
+          if (!calendarList) return;
+          if (!items || items.length === 0) {
+            calendarList.innerHTML =
+              '<p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>';
+            return;
+          }
+
+          calendarList.innerHTML = items
+            .map((event) => {
+              const title = (event.summary || "").trim() || "제목 없는 일정";
+              const timeText = formatEventTime(event);
+              return `
+                <div class="rounded-lg border border-[#d8e5fb] bg-[#f7faff] px-3 py-2 sm:px-4 sm:py-3">
+                  <p class="font-semibold text-slate-800 leading-snug">${title}</p>
+                  <p class="mt-1 text-slate-600">${timeText}</p>
+                </div>
+              `;
+            })
+            .join("");
+        }
+
+        async function loadCalendar() {
+          if (!calendarList || !calendarDate) return;
+          try {
+            const query = window.location.search || "";
+            const res = await fetch(`/api/calendar/naver/today${query}`);
+            if (!res.ok) {
+              throw new Error(`status:${res.status}`);
+            }
+
+            const data = await res.json();
+            const targetDate = data?.date;
+            if (targetDate) {
+              const parsedDate = new Date(`${targetDate}T00:00:00+09:00`);
+              const label = new Intl.DateTimeFormat("ko-KR", {
+                month: "numeric",
+                day: "numeric",
+                weekday: "short",
+              }).format(parsedDate);
+              calendarDate.textContent = label;
+            } else {
+              calendarDate.textContent = "오늘";
+            }
+            renderCalendarItems(
+              Array.isArray(data?.schedules) ? data.schedules : [],
+            );
+          } catch (_error) {
+            calendarDate.textContent = "일정 오류";
+            calendarList.innerHTML =
+              '<p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>';
+          }
+        }
+
         render("temp");
+        loadCalendar();
       })();
     </script>
   </body>
