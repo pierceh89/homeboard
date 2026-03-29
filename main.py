@@ -388,3 +388,36 @@ async def get_naver_calendar_today(accessKey: str | None = None):
         total=len(schedules),
         schedules=schedules,
     )
+
+
+@app.get("/api/weather/short-term", response_model=WeatherResponse)
+async def get_short_term_forecast(accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    now = datetime.now(KST)
+    weather = await get_weather(now, settings.weather)
+
+    return weather
+
+
+@app.get("/api/weather/mid-term", response_model=MidForecastResponse)
+async def get_mid_term_forecast(accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    now = datetime.now(KST)
+    mid_forecast = await get_mid_forecast(now, land_reg_id=settings.land_reg_id, temp_reg_id=settings.temp_reg_id)
+
+    return mid_forecast
+
+
+@app.get("/api/weather/air", response_model=AirConditionResponse)
+async def get_air(accessKey: str | None = None):
+    if settings.access_key != "" and accessKey != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    now = datetime.now(KST)
+    air_condition = await get_air_condition(now)
+
+    return air_condition

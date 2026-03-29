@@ -8,8 +8,7 @@ from settings import WeatherRequest, get_settings
 
 FORECAST_TIMES = [2, 5, 8, 11, 14, 17, 20, 23]
 WEATHER_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
-WEATHER_NUM_OF_ROWS = 200
-WEATHER_MAX_PAGES = 10
+WEATHER_NUM_OF_ROWS = 300
 
 SKY_MAP = {
     1: "맑음",
@@ -206,7 +205,7 @@ async def _fetch_weather_page(
 
     body = payload.get("response", {}).get("body", {})
     raw_total_count = body.get("totalCount")
-    total_count = to_int(raw_total_count)
+    total_count = int(raw_total_count)
     items = body.get("items", {}).get("item", [])
     return (items if isinstance(items, list) else []), total_count
 
@@ -215,24 +214,20 @@ async def get_weather(now: datetime, request: WeatherRequest) -> WeatherResponse
     base_date, base_time = _select_base(now)
     total_items: list[dict] = []
     total_count: int | None = None
+    page_no = 1
 
-    for page_no in range(1, WEATHER_MAX_PAGES + 1):
-        items, page_total_count = await _fetch_weather_page(base_date, base_time, request, page_no)
+    while True:
+        items, total_count = await _fetch_weather_page(base_date, base_time, request, page_no)
         if items is None:
-            return WeatherResponse.empty(
-                region=request.region,
-                base_date=base_date,
-                base_time=base_time,
-                now=now,
-            )
-        total_items.extend(items)
-        if total_count is None and page_total_count is not None:
-            total_count = page_total_count
+            break
 
-        if total_count is not None and len(total_items) >= total_count:
+        total_items.extend(items)
+
+        if len(total_items) >= total_count:
             break
-        if len(items) < WEATHER_NUM_OF_ROWS:
-            break
+
+        page_no = page_no + 1
+
 
     forecasts = _normalize_forecasts(total_items)
     return WeatherResponse(
