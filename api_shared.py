@@ -38,12 +38,22 @@ def fetched_at_label(now: datetime) -> str:
     return now.strftime("%Y-%m-%d %H:%M")
 
 
+def should_propagate_http_error(exc: httpx.HTTPError) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        return True
+    return False
+
+
 async def fetch_json(url: str, params: dict, timeout: float = 10.0) -> dict | None:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url=url, params=params, timeout=timeout)
             response.raise_for_status()
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        if should_propagate_http_error(exc):
+            raise
         return None
 
     try:

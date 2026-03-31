@@ -1,18 +1,23 @@
 from datetime import datetime, timedelta
 from io import BytesIO
-from threading import Lock
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from air import AirConditionResponse, get_air_condition
-from api import BusArrivalStop, get_bus_arrivals
-from mid_forecast import MidForecastResponse, get_mid_forecast
+from air import AirConditionResponse
+from api import BusArrivalStop
+from cache_layer import (
+    get_air_condition_cached,
+    get_bus_arrivals_cached,
+    get_mid_forecast_cached,
+    get_weather_cached,
+)
+from mid_forecast import MidForecastResponse
 from settings import get_settings
-from weather import WeatherForecastSlot, WeatherResponse, get_weather
+from weather import WeatherForecastSlot, WeatherResponse
 from naver_calendar import get_naver_today_events
 
 import json
@@ -26,10 +31,6 @@ templates = Jinja2Templates(directory="static/templates")
 
 WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 KST = ZoneInfo("Asia/Seoul")
-WEATHER_CACHE_TTL = timedelta(minutes=30)
-BUS_CACHE_TTL = timedelta(minutes=1)
-AIR_CACHE_TTL = timedelta(minutes=15)
-MID_CACHE_TTL = timedelta(hours=6)
 settings = get_settings()
 
 
@@ -46,23 +47,6 @@ class TodayScheduleResponse(BaseModel):
     timezone: str
     total: int
     schedules: list[TodayScheduleItem]
-
-
-_weather_cache_lock = Lock()
-_weather_cache_value: WeatherResponse | None = None
-_weather_cache_expires_at: datetime | None = None
-
-_bus_cache_lock = Lock()
-_bus_cache_value: list[BusArrivalStop] | None = None
-_bus_cache_expires_at: datetime | None = None
-
-_air_cache_lock = Lock()
-_air_cache_value: AirConditionResponse | None = None
-_air_cache_expires_at: datetime | None = None
-
-_mid_cache_lock = Lock()
-_mid_cache_value: MidForecastResponse | None = None
-_mid_cache_expires_at: datetime | None = None
 
 
 def _slot_dt(slot) -> datetime | None:
@@ -194,72 +178,9 @@ def _build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForec
     return weekly
 
 
-async def _get_weather_cached(now: datetime):
-    global _weather_cache_value, _weather_cache_expires_at
-    with _weather_cache_lock:
-        if _weather_cache_value is not None and _weather_cache_expires_at is not None and now < _weather_cache_expires_at:
-            return _weather_cache_value
-
-    weather = await get_weather(now, settings.weather)
-
-    with _weather_cache_lock:
-        _weather_cache_value = weather
-        _weather_cache_expires_at = now + WEATHER_CACHE_TTL
-
-    return weather
-
-
-async def _get_bus_arrivals_cached(now: datetime):
-    global _bus_cache_value, _bus_cache_expires_at
-    with _bus_cache_lock:
-        if _bus_cache_value is not None and _bus_cache_expires_at is not None and now < _bus_cache_expires_at:
-            return _bus_cache_value
-
-    bus_arrivals = await get_bus_arrivals(request=settings.bus_arrival)
-
-    with _bus_cache_lock:
-        _bus_cache_value = bus_arrivals
-        _bus_cache_expires_at = now + BUS_CACHE_TTL
-
-    return bus_arrivals
-
-
-async def _get_air_condition_cached(now: datetime):
-    global _air_cache_value, _air_cache_expires_at
-    with _air_cache_lock:
-        if _air_cache_value is not None and _air_cache_expires_at is not None and now < _air_cache_expires_at:
-            return _air_cache_value
-
-    air = await get_air_condition(now)
-
-    with _air_cache_lock:
-        _air_cache_value = air
-        _air_cache_expires_at = now + AIR_CACHE_TTL
-
-    return air
-
-
-async def _get_mid_forecast_cached(now: datetime):
-    global _mid_cache_value, _mid_cache_expires_at
-    with _mid_cache_lock:
-        if _mid_cache_value is not None and _mid_cache_expires_at is not None and now < _mid_cache_expires_at:
-            return _mid_cache_value
-
-    try:
-        mid = await get_mid_forecast(
-            now=now,
-            land_reg_id=settings.land_reg_id,
-            temp_reg_id=settings.temp_reg_id,
-            # stn_id="109",
-        )
-    except Exception:
-        mid = None
-
-    with _mid_cache_lock:
-        _mid_cache_value = mid
-        _mid_cache_expires_at = now + MID_CACHE_TTL
-
-    return mid
+def _require_access_key(access_key: str | None):
+    if settings.access_key != "" and access_key != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 @app.get("/")
@@ -269,14 +190,13 @@ def read_root():
 
 @app.get("/home")
 async def get_home(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    weather = await _get_weather_cached(now)
-    bus_stops = await _get_bus_arrivals_cached(now)
-    air = await _get_air_condition_cached(now)
-    mid = await _get_mid_forecast_cached(now)
+    weather = await get_weather_cached(now)
+    bus_stops = await get_bus_arrivals_cached(now)
+    air = await get_air_condition_cached(now)
+    mid = await get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     weekly_outlook = _build_weekly_outlook(now, weather, mid)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
@@ -296,13 +216,12 @@ async def get_home(request: Request, accessKey: str | None = None):
 
 @app.get("/kindle")
 async def get_kindle_home(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    weather = await _get_weather_cached(now)
-    air = await _get_air_condition_cached(now)
-    mid = await _get_mid_forecast_cached(now)
+    weather = await get_weather_cached(now)
+    air = await get_air_condition_cached(now)
+    mid = await get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     weekly_outlook = _build_weekly_outlook(now, weather, mid)
     now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
@@ -321,8 +240,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
 
 @app.get("/kindle-image")
 async def get_kindle_home_image(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     try:
         from playwright.async_api import async_playwright
@@ -353,8 +271,7 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
 
 @app.get("/api/calendar/naver/today", response_model=TodayScheduleResponse)
 async def get_naver_calendar_today(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     if not settings.naver_caldav_username or not settings.naver_caldav_password:
         raise HTTPException(status_code=500, detail="NAVER CalDAV credentials are not configured")
@@ -391,33 +308,41 @@ async def get_naver_calendar_today(accessKey: str | None = None):
 
 
 @app.get("/api/weather/short-term", response_model=WeatherResponse)
-async def get_short_term_forecast(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_short_term_forecast(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    weather = await get_weather(now, settings.weather)
+    weather = await get_weather_cached(now, force_reload=force_reload)
 
     return weather
 
 
 @app.get("/api/weather/mid-term", response_model=MidForecastResponse)
-async def get_mid_term_forecast(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_mid_term_forecast(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
     
     now = datetime.now(KST)
-    mid_forecast = await get_mid_forecast(now, land_reg_id=settings.land_reg_id, temp_reg_id=settings.temp_reg_id)
+    mid_forecast = await get_mid_forecast_cached(now, force_reload=force_reload)
 
     return mid_forecast
 
 
 @app.get("/api/weather/air", response_model=AirConditionResponse)
-async def get_air(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_air(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    air_condition = await get_air_condition(now)
+    air_condition = await get_air_condition_cached(now, force_reload=force_reload)
 
     return air_condition
+
+
+@app.get("/api/bus-arrivals", response_model=list[BusArrivalStop])
+async def get_bus_arrivals_api(
+    accessKey: str | None = None,
+    force_reload: bool = Query(default=False),
+):
+    _require_access_key(accessKey)
+
+    now = datetime.now(KST)
+    return await get_bus_arrivals_cached(now, force_reload=force_reload)
