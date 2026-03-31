@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 from io import BytesIO
 from threading import Lock
+from typing import Awaitable, Callable, TypeVar
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -49,20 +50,18 @@ class TodayScheduleResponse(BaseModel):
 
 
 _weather_cache_lock = Lock()
-_weather_cache_value: WeatherResponse | None = None
-_weather_cache_expires_at: datetime | None = None
+_weather_cache = {"value": None, "expires_at": None}
 
 _bus_cache_lock = Lock()
-_bus_cache_value: list[BusArrivalStop] | None = None
-_bus_cache_expires_at: datetime | None = None
+_bus_cache = {"value": None, "expires_at": None}
 
 _air_cache_lock = Lock()
-_air_cache_value: AirConditionResponse | None = None
-_air_cache_expires_at: datetime | None = None
+_air_cache = {"value": None, "expires_at": None}
 
 _mid_cache_lock = Lock()
-_mid_cache_value: MidForecastResponse | None = None
-_mid_cache_expires_at: datetime | None = None
+_mid_cache = {"value": None, "expires_at": None}
+
+CacheValue = TypeVar("CacheValue")
 
 
 def _slot_dt(slot) -> datetime | None:
@@ -194,72 +193,89 @@ def _build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForec
     return weekly
 
 
-async def _get_weather_cached(now: datetime):
-    global _weather_cache_value, _weather_cache_expires_at
-    with _weather_cache_lock:
-        if _weather_cache_value is not None and _weather_cache_expires_at is not None and now < _weather_cache_expires_at:
-            return _weather_cache_value
+async def _get_cached_value(
+    *,
+    now: datetime,
+    lock: Lock,
+    cache: dict[str, object | None],
+    ttl: timedelta,
+    fetcher: Callable[[], Awaitable[CacheValue]],
+    force_reload: bool = False,
+) -> CacheValue:
+    if not force_reload:
+        with lock:
+            cached_value = cache["value"]
+            expires_at = cache["expires_at"]
+            if cached_value is not None and isinstance(expires_at, datetime) and now < expires_at:
+                return cached_value  # type: ignore[return-value]
 
-    weather = await get_weather(now, settings.weather)
+    fresh_value = await fetcher()
 
-    with _weather_cache_lock:
-        _weather_cache_value = weather
-        _weather_cache_expires_at = now + WEATHER_CACHE_TTL
+    with lock:
+        cache["value"] = fresh_value
+        cache["expires_at"] = now + ttl
 
-    return weather
-
-
-async def _get_bus_arrivals_cached(now: datetime):
-    global _bus_cache_value, _bus_cache_expires_at
-    with _bus_cache_lock:
-        if _bus_cache_value is not None and _bus_cache_expires_at is not None and now < _bus_cache_expires_at:
-            return _bus_cache_value
-
-    bus_arrivals = await get_bus_arrivals(request=settings.bus_arrival)
-
-    with _bus_cache_lock:
-        _bus_cache_value = bus_arrivals
-        _bus_cache_expires_at = now + BUS_CACHE_TTL
-
-    return bus_arrivals
+    return fresh_value
 
 
-async def _get_air_condition_cached(now: datetime):
-    global _air_cache_value, _air_cache_expires_at
-    with _air_cache_lock:
-        if _air_cache_value is not None and _air_cache_expires_at is not None and now < _air_cache_expires_at:
-            return _air_cache_value
-
-    air = await get_air_condition(now)
-
-    with _air_cache_lock:
-        _air_cache_value = air
-        _air_cache_expires_at = now + AIR_CACHE_TTL
-
-    return air
+async def _get_weather_cached(now: datetime, force_reload: bool = False):
+    return await _get_cached_value(
+        now=now,
+        lock=_weather_cache_lock,
+        cache=_weather_cache,
+        ttl=WEATHER_CACHE_TTL,
+        fetcher=lambda: get_weather(now, settings.weather),
+        force_reload=force_reload,
+    )
 
 
-async def _get_mid_forecast_cached(now: datetime):
-    global _mid_cache_value, _mid_cache_expires_at
-    with _mid_cache_lock:
-        if _mid_cache_value is not None and _mid_cache_expires_at is not None and now < _mid_cache_expires_at:
-            return _mid_cache_value
+async def _get_bus_arrivals_cached(now: datetime, force_reload: bool = False):
+    return await _get_cached_value(
+        now=now,
+        lock=_bus_cache_lock,
+        cache=_bus_cache,
+        ttl=BUS_CACHE_TTL,
+        fetcher=lambda: get_bus_arrivals(request=settings.bus_arrival),
+        force_reload=force_reload,
+    )
 
-    try:
-        mid = await get_mid_forecast(
-            now=now,
-            land_reg_id=settings.land_reg_id,
-            temp_reg_id=settings.temp_reg_id,
-            # stn_id="109",
-        )
-    except Exception:
-        mid = None
 
-    with _mid_cache_lock:
-        _mid_cache_value = mid
-        _mid_cache_expires_at = now + MID_CACHE_TTL
+async def _get_air_condition_cached(now: datetime, force_reload: bool = False):
+    return await _get_cached_value(
+        now=now,
+        lock=_air_cache_lock,
+        cache=_air_cache,
+        ttl=AIR_CACHE_TTL,
+        fetcher=lambda: get_air_condition(now),
+        force_reload=force_reload,
+    )
 
-    return mid
+
+async def _get_mid_forecast_cached(now: datetime, force_reload: bool = False):
+    async def _fetch_mid():
+        try:
+            return await get_mid_forecast(
+                now=now,
+                land_reg_id=settings.land_reg_id,
+                temp_reg_id=settings.temp_reg_id,
+                # stn_id="109",
+            )
+        except Exception:
+            return None
+
+    return await _get_cached_value(
+        now=now,
+        lock=_mid_cache_lock,
+        cache=_mid_cache,
+        ttl=MID_CACHE_TTL,
+        fetcher=_fetch_mid,
+        force_reload=force_reload,
+    )
+
+
+def _require_access_key(access_key: str | None):
+    if settings.access_key != "" and access_key != settings.access_key:
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 @app.get("/")
@@ -269,8 +285,7 @@ def read_root():
 
 @app.get("/home")
 async def get_home(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
     weather = await _get_weather_cached(now)
@@ -296,8 +311,7 @@ async def get_home(request: Request, accessKey: str | None = None):
 
 @app.get("/kindle")
 async def get_kindle_home(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
     weather = await _get_weather_cached(now)
@@ -321,8 +335,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
 
 @app.get("/kindle-image")
 async def get_kindle_home_image(request: Request, accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     try:
         from playwright.async_api import async_playwright
@@ -353,8 +366,7 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
 
 @app.get("/api/calendar/naver/today", response_model=TodayScheduleResponse)
 async def get_naver_calendar_today(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+    _require_access_key(accessKey)
 
     if not settings.naver_caldav_username or not settings.naver_caldav_password:
         raise HTTPException(status_code=500, detail="NAVER CalDAV credentials are not configured")
@@ -391,33 +403,41 @@ async def get_naver_calendar_today(accessKey: str | None = None):
 
 
 @app.get("/api/weather/short-term", response_model=WeatherResponse)
-async def get_short_term_forecast(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_short_term_forecast(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    weather = await get_weather(now, settings.weather)
+    weather = await _get_weather_cached(now, force_reload=force_reload)
 
     return weather
 
 
 @app.get("/api/weather/mid-term", response_model=MidForecastResponse)
-async def get_mid_term_forecast(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_mid_term_forecast(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
     
     now = datetime.now(KST)
-    mid_forecast = await get_mid_forecast(now, land_reg_id=settings.land_reg_id, temp_reg_id=settings.temp_reg_id)
+    mid_forecast = await _get_mid_forecast_cached(now, force_reload=force_reload)
 
     return mid_forecast
 
 
 @app.get("/api/weather/air", response_model=AirConditionResponse)
-async def get_air(accessKey: str | None = None):
-    if settings.access_key != "" and accessKey != settings.access_key:
-        raise HTTPException(status_code=404, detail="Not Found")
+async def get_air(accessKey: str | None = None, force_reload: bool = Query(default=False)):
+    _require_access_key(accessKey)
 
     now = datetime.now(KST)
-    air_condition = await get_air_condition(now)
+    air_condition = await _get_air_condition_cached(now, force_reload=force_reload)
 
     return air_condition
+
+
+@app.get("/api/bus-arrivals", response_model=list[BusArrivalStop])
+async def get_bus_arrivals_api(
+    accessKey: str | None = None,
+    force_reload: bool = Query(default=False),
+):
+    _require_access_key(accessKey)
+
+    now = datetime.now(KST)
+    return await _get_bus_arrivals_cached(now, force_reload=force_reload)
