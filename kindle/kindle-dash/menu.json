@@ -1,3 +1,8 @@
 {
-  "items": [{ "name": "Kindle Dashboard", "action": "bin/start.sh" }]
+  "items": [
+    {
+      "name": "Kindle Dashboard",
+      "action": "/mnt/us/extensions/kindle-dash/bin/start.sh"
+    }
+  ]
 }
