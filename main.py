@@ -224,8 +224,9 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
     mid = await get_mid_forecast_cached(now)
     hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
     weekly_outlook = _build_weekly_outlook(now, weather, mid)
+    date_label = f"{now.strftime('%m.%d')}"
     now_label = (
-        f"{now.strftime('%m.%d')} ({WEEKDAY_KO[now.weekday()]}요일) "
+        f"({WEEKDAY_KO[now.weekday()]}요일) "
         f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
         f"{now.strftime('%I:%M').lstrip('0')}"
     )
@@ -238,6 +239,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
             "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
             "weekly_outlook": weekly_outlook,
             "now_label": now_label,
+            "date_label": date_label,
         },
     )
 
