@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from api_shared import clean_text, fetch_json, fetched_at_label, to_int
-from settings import get_settings
+from app.api_shared import clean_text, fetch_json, fetched_at_label, to_int
+from app.settings import get_settings
 
 MID_FORECAST_BASE_URL = "https://apis.data.go.kr/1360000/MidFcstInfoService"
 

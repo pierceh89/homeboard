@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from api_shared import clean_text, fetch_json, fetched_at_label, to_float, to_int
-from settings import WeatherRequest, get_settings
+from app.api_shared import clean_text, fetch_json, fetched_at_label, to_float, to_int
+from app.settings import WeatherRequest, get_settings
 
 FORECAST_TIMES = [2, 5, 8, 11, 14, 17, 20, 23]
 WEATHER_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"

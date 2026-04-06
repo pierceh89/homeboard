@@ -35,4 +35,4 @@ HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
 
 echo "[run] starting app on ${HOST}:${PORT}"
-exec uvicorn main:app --host "$HOST" --port "$PORT"
+exec uvicorn app.main:app --host "$HOST" --port "$PORT"

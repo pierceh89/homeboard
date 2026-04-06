@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -7,26 +8,31 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from air import AirConditionResponse
-from api import BusArrivalStop
+from app.air import AirConditionResponse
+from app.api import BusArrivalStop
 from cache_layer import (
     get_air_condition_cached,
     get_bus_arrivals_cached,
     get_mid_forecast_cached,
     get_weather_cached,
 )
-from mid_forecast import MidForecastResponse
-from settings import get_settings
-from weather import WeatherForecastSlot, WeatherResponse
-from naver_calendar import get_naver_today_events
+from app.mid_forecast import MidForecastResponse
+from app.settings import get_settings
+from app.weather import WeatherForecastSlot, WeatherResponse
+from app.naver_calendar import get_naver_today_events
 
 import json
 
+APP_DIR = Path(__file__).resolve().parent
+SERVICE_DIR = APP_DIR.parent
+STATIC_DIR = SERVICE_DIR / "static"
+TEMPLATES_DIR = STATIC_DIR / "templates"
+
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-templates = Jinja2Templates(directory="static/templates")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
@@ -352,3 +358,4 @@ async def get_bus_arrivals_api(
 
     now = datetime.now(KST)
     return await get_bus_arrivals_cached(now, force_reload=force_reload)
+

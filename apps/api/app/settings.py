@@ -1,7 +1,11 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
+
+APP_DIR = Path(__file__).resolve().parent
+SERVICE_DIR = APP_DIR.parent
 
 
 class AirConditionRequest(BaseModel):
@@ -56,7 +60,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        yaml_file_path = "settings.yaml"
+        yaml_file_path = SERVICE_DIR / "settings.yaml"
 
         yaml_source = YamlConfigSettingsSource(settings_cls, yaml_file=yaml_file_path)
         return (

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from api_shared import clean_text, fetch_json, to_int
-from settings import BusArrivalRequest, BusStop, get_settings
+from app.api_shared import clean_text, fetch_json, to_int
+from app.settings import BusArrivalRequest, BusStop, get_settings
 
 STATE_CD = {
     0: "교차로통과",

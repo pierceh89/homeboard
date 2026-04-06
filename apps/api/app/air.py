@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from api_shared import clean_text, fetch_json, fetched_at_label, to_float, to_int
-from settings import get_settings
+from app.api_shared import clean_text, fetch_json, fetched_at_label, to_float, to_int
+from app.settings import get_settings
 
 GRADE_LABELS = {
     1: "좋음",

@@ -5,7 +5,14 @@
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
-      "args": ["main:app", "--reload", "--host", "0.0.0.0"],
+      "args": [
+        "app.main:app",
+        "--reload",
+        "--host",
+        "0.0.0.0",
+        "--app-dir",
+        "apps/api"
+      ],
       "jinja": true
     }
   ]
