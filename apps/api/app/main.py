@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+import json
+import traceback
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -16,12 +18,11 @@ from app.cache_layer import (
     get_mid_forecast_cached,
     get_weather_cached,
 )
+from app.discord import send_discord
 from app.mid_forecast import MidForecastResponse
 from app.settings import get_settings
 from app.weather import WeatherForecastSlot, WeatherResponse
 from app.naver_calendar import get_naver_today_events
-
-import json
 
 APP_DIR = Path(__file__).resolve().parent
 SERVICE_DIR = APP_DIR.parent
@@ -189,6 +190,37 @@ def _require_access_key(access_key: str | None):
         raise HTTPException(status_code=404, detail="Not Found")
 
 
+def _build_page_error_log(page_name: str, request: Request, exc: Exception) -> str:
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S %Z")
+    client_host = request.client.host if request.client else "-"
+    user_agent = request.headers.get("user-agent", "-")
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    prefix = (
+        "[Homeboard Render Error]\n"
+        f"time: {now}\n"
+        f"page: {page_name}\n"
+        f"path: {request.url.path}\n"
+        f"client: {client_host}\n"
+        f"user-agent: {user_agent}\n"
+        f"error: {type(exc).__name__}: {exc}\n"
+        "traceback:\n```"
+    )
+    suffix = "```"
+    max_trace_length = 2000 - len(prefix) - len(suffix)
+    if max_trace_length < 0:
+        return prefix[:1997] + "..."
+    if len(trace) > max_trace_length:
+        trace = "..." + trace[-max(0, max_trace_length - 3) :]
+    return f"{prefix}{trace}{suffix}"
+
+
+async def _notify_page_render_error(page_name: str, request: Request, exc: Exception) -> None:
+    try:
+        await send_discord(_build_page_error_log(page_name, request, exc), username="Homeboard")
+    except Exception:
+        pass
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -198,56 +230,64 @@ def read_root():
 async def get_home(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
-    now = datetime.now(KST)
-    weather = await get_weather_cached(now)
-    bus_stops = await get_bus_arrivals_cached(now)
-    air = await get_air_condition_cached(now)
-    mid = await get_mid_forecast_cached(now)
-    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
-    weekly_outlook = _build_weekly_outlook(now, weather, mid)
-    now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
-    return templates.TemplateResponse(
-        request=request,
-        name="home.html",
-        context={
-            "bus_stops": bus_stops,
-            "weather": weather,
-            "air": air,
-            "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
-            "weekly_outlook": weekly_outlook,
-            "now_label": now_label,
-        },
-    )
+    try:
+        now = datetime.now(KST)
+        weather = await get_weather_cached(now)
+        bus_stops = await get_bus_arrivals_cached(now)
+        air = await get_air_condition_cached(now)
+        mid = await get_mid_forecast_cached(now)
+        hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+        weekly_outlook = _build_weekly_outlook(now, weather, mid)
+        now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
+        return templates.TemplateResponse(
+            request=request,
+            name="home.html",
+            context={
+                "bus_stops": bus_stops,
+                "weather": weather,
+                "air": air,
+                "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+                "weekly_outlook": weekly_outlook,
+                "now_label": now_label,
+            },
+        )
+    except Exception as exc:
+        await _notify_page_render_error("/home", request, exc)
+        raise
 
 
 @app.get("/kindle")
 async def get_kindle_home(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
-    now = datetime.now(KST)
-    weather = await get_weather_cached(now)
-    air = await get_air_condition_cached(now)
-    mid = await get_mid_forecast_cached(now)
-    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
-    weekly_outlook = _build_weekly_outlook(now, weather, mid)
-    date_label = f"{now.strftime('%m.%d')}"
-    now_label = (
-        f"({WEEKDAY_KO[now.weekday()]}요일) "
-        f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
-        f"{now.strftime('%I:%M').lstrip('0')}"
-    )
-    return templates.TemplateResponse(
-        request=request,
-        name="kindle_home.html",
-        context={
-            "weather": weather,
-            "air": air,
-            "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
-            "weekly_outlook": weekly_outlook,
-            "now_label": now_label,
-            "date_label": date_label,
-        },
-    )
+    try:
+        now = datetime.now(KST)
+        weather = await get_weather_cached(now)
+        air = await get_air_condition_cached(now)
+        mid = await get_mid_forecast_cached(now)
+        hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+        weekly_outlook = _build_weekly_outlook(now, weather, mid)
+        date_label = f"{now.strftime('%m.%d')}"
+        now_label = (
+            f"({WEEKDAY_KO[now.weekday()]}요일) "
+            f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
+            f"{now.strftime('%I:%M').lstrip('0')}"
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="kindle_home.html",
+            context={
+                "weather": weather,
+                "air": air,
+                "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+                "weekly_outlook": weekly_outlook,
+                "now_label": now_label,
+                "date_label": date_label,
+            },
+        )
+    except Exception as exc:
+        await _notify_page_render_error("/kindle", request, exc)
+        raise
 
 
 @app.get("/kindle-image")
@@ -358,4 +398,3 @@ async def get_bus_arrivals_api(
 
     now = datetime.now(KST)
     return await get_bus_arrivals_cached(now, force_reload=force_reload)
-
