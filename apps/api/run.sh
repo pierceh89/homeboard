@@ -19,7 +19,7 @@ uv sync --frozen
 # fi
 
 echo "[setup] installing Playwright Chromium..."
-uv run --frozen python -m playwright install-deps chromium
+uv run --frozen python -m playwright install chromium
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
