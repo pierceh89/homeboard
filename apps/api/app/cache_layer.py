@@ -6,12 +6,12 @@ from typing import Awaitable, Callable, TypeVar
 
 import httpx
 
-from air import AirConditionResponse, get_air_condition
-from api import BusArrivalStop, get_bus_arrivals
-from api_shared import should_propagate_http_error
-from mid_forecast import MidForecastResponse, get_mid_forecast
-from settings import get_settings
-from weather import WeatherResponse, _select_base, get_weather
+from app.air import AirConditionResponse, get_air_condition
+from app.api import BusArrivalStop, get_bus_arrivals
+from app.api_shared import should_propagate_http_error
+from app.mid_forecast import MidForecastResponse, get_mid_forecast
+from app.settings import get_settings
+from app.weather import WeatherResponse, _select_base, get_weather
 
 WEATHER_CACHE_TTL = timedelta(minutes=30)
 BUS_CACHE_TTL = timedelta(minutes=1)
