@@ -17,6 +17,7 @@ FastAPI 기반 홈 대시보드입니다.
 - Backend: FastAPI, Uvicorn, Jinja2, httpx
 - Frontend: Tailwind CSS (CLI)
 - Runtime: Python 3.12.8 (`apps/api/runtime.txt`)
+- Python dependency management: uv
 
 ## 프로젝트 구조
 
@@ -35,7 +36,8 @@ FastAPI 기반 홈 대시보드입니다.
 │       │   ├── templates/home.html
 │       │   ├── src/input.css
 │       │   └── css/tailwind.css
-│       ├── requirements.txt
+│       ├── pyproject.toml
+│       ├── uv.lock
 │       ├── Procfile
 │       ├── app.json
 │       ├── runtime.txt
@@ -63,18 +65,17 @@ FastAPI 기반 홈 대시보드입니다.
    cd homeboard
    ```
 
-2. Python 가상환경을 생성하고 활성화합니다:
+2. uv를 설치합니다:
 
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # macOS/Linux
-   # 또는 Windows: .venv\Scripts\activate
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. 의존성을 설치합니다:
+3. Python 의존성을 설치합니다:
 
    ```bash
-   pip install -r apps/api/requirements.txt
+   cd apps/api
+   uv sync --frozen
    ```
 
 4. Node.js 의존성을 설치합니다:
@@ -102,7 +103,8 @@ ACCESS_KEY=your_private_access_key  # 선택사항, 설정하지 않으면 접�
 1. 개발 서버를 실행합니다:
 
    ```bash
-   uvicorn app.main:app --reload --app-dir apps/api
+   cd apps/api
+   uv run --frozen uvicorn app.main:app --reload
    ```
 
 2. 브라우저에서 `http://localhost:8000/home`에 접속합니다.

@@ -4,23 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 is required. Please install Python 3 first."
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required. Please install uv first: https://docs.astral.sh/uv/getting-started/installation/"
   exit 1
 fi
 
-if [ ! -d ".venv" ]; then
-  echo "[setup] creating virtual environment..."
-  python3 -m venv .venv
-fi
-
-source .venv/bin/activate
-
-echo "[setup] upgrading pip..."
-python -m pip install --upgrade pip
-
 echo "[setup] installing Python dependencies..."
-pip install -r requirements.txt
+uv sync --frozen
 
 # if [ ! -f "static/css/tailwind.css" ] && command -v npm >/dev/null 2>&1; then
 #   echo "[setup] building Tailwind CSS..."
@@ -29,10 +19,10 @@ pip install -r requirements.txt
 # fi
 
 echo "[setup] installing Playwright Chromium..."
-python -m playwright install-deps chromium
+uv run --frozen python -m playwright install-deps chromium
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
 
 echo "[run] starting app on ${HOST}:${PORT}"
-exec uvicorn app.main:app --host "$HOST" --port "$PORT"
+exec uv run --frozen uvicorn app.main:app --host "$HOST" --port "$PORT"
