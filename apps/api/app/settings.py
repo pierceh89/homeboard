@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     naver_caldav_password: str = Field(default="", validation_alias="NAVER_CALDAV_PASSWORD")
     naver_caldav_calendar_name: str = Field(default="", validation_alias="NAVER_CALDAV_CALENDAR_NAME")
 
+    discord_webhook_url: str = Field(default="", validation_alias="DISCORD_WEBHOOK_URL")
+
     land_reg_id: str = Field(default="11B00000", validation_alias="LAND_REG_ID")
     temp_reg_id: str = Field(default="11B20612", validation_alias="TEMP_REG_ID")
 
