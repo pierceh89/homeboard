@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+import asyncio
 import json
 import traceback
 from zoneinfo import ZoneInfo
@@ -28,6 +29,8 @@ APP_DIR = Path(__file__).resolve().parent
 SERVICE_DIR = APP_DIR.parent
 STATIC_DIR = SERVICE_DIR / "static"
 TEMPLATES_DIR = STATIC_DIR / "templates"
+KINDLE_IMAGE_RENDER_RETRY_COUNT = 3
+KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS = 1.0
 
 app = FastAPI()
 
@@ -310,7 +313,17 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                     viewport={"width": 600, "height": 800},
                     device_scale_factor=1,
                 )
-                await page.goto(target_url, wait_until="networkidle")
+                last_status_code = None
+                for attempt in range(1, KINDLE_IMAGE_RENDER_RETRY_COUNT + 1):
+                    page_response = await page.goto(target_url, wait_until="networkidle")
+                    last_status_code = page_response.status if page_response is not None else None
+                    if last_status_code == 200:
+                        break
+                    if attempt < KINDLE_IMAGE_RENDER_RETRY_COUNT:
+                        await asyncio.sleep(KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS)
+                else:
+                    raise RuntimeError(f"target page returned status code {last_status_code}")
+
                 image_bytes = await page.screenshot(type="png", full_page=False)
                 image_bytes = _convert_png_to_8bit_grayscale(image_bytes)
             finally:
