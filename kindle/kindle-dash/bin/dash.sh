@@ -9,6 +9,7 @@ FULL_DISPLAY_REFRESH_RATE=${FULL_DISPLAY_REFRESH_RATE:-4}
 LOW_BATTERY_REPORTING=${LOW_BATTERY_REPORTING:-false}
 LOW_BATTERY_THRESHOLD_PERCENT=${LOW_BATTERY_THRESHOLD_PERCENT:-10}
 LOW_BATTERY_CMD=${LOW_BATTERY_CMD:-"$DIR/low-battery.sh"}
+WIFI_TEST_IP=${WIFI_TEST_IP:-1.1.1.1}
 num_refresh=0
 
 
@@ -42,6 +43,7 @@ init() {
 
 refresh_dashboard() {
   log "Refreshing dashboard"
+  "$DIR/wait-for-wifi.sh" "$WIFI_TEST_IP"
 
   curl -k "$SCREEN_URL" -o "$DIR/screen.png"
   fetch_status=$?
