@@ -96,6 +96,7 @@ FastAPI 기반 홈 대시보드입니다.
 ```env
 PUBLIC_API_KEY=your_public_data_api_key
 ACCESS_KEY=your_private_access_key  # 선택사항, 설정하지 않으면 접근 제한 없음
+DISCORD_WEBHOOK_URL=your_discord_webhook_url  # 서비스 에러 시 discord 알림용
 ```
 
 ## 실행 방법

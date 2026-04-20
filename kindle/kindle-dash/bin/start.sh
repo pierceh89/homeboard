@@ -4,11 +4,15 @@ DEBUG=${DEBUG:-false}
 
 DIR="$(dirname "$0")"
 LOG_FILE="$DIR/log/dash.log"
+ENV_FILE=".env"
+
+if [ -f "$DIR/$ENV_FILE" ]; then
+  set -a
+  . "$DIR/$ENV_FILE"
+  set +a
+fi
 
 mkdir -p "$(dirname "$LOG_FILE")"
-
-# shellcheck disable=SC1090
-# [ -f "$ENV_FILE" ] && . "$ENV_FILE"
 
 if [ "$DEBUG" = true ]; then
   "$DIR/dash.sh"

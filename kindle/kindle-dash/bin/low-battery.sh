@@ -13,4 +13,12 @@ if [ "$previous_report_timestamp" -eq -1 ] ||
   # Customize this hook (for example: curl/webhook/slack notification).
   echo "[$(date -u)] Reporting low battery: ${battery_level_percentage}%"
   echo "$now" >"$last_battery_report_state"
+  MESSAGE="[KINDLE] Reporting low battery: ${battery_level_percentage}%"
+  if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+    curl -H "Content-Type: application/json" \
+      -d "$(printf '{"content": "%s"}' "$MESSAGE")" \
+      "$DISCORD_WEBHOOK_URL"
+  else
+    echo "[$(date -u)] DISCORD_WEBHOOK_URL is not set; skipping low battery notification"
+  fi
 fi
