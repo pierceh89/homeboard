@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Awaitable, Callable, TypeVar
+from typing import Any, Awaitable, Callable, TypeVar
+
+import asyncio
 
 import httpx
 
@@ -21,16 +23,16 @@ MID_CACHE_TTL = timedelta(hours=6)
 settings = get_settings()
 
 _weather_cache_lock = Lock()
-_weather_cache = {"value": None, "expires_at": None}
+_weather_cache: dict[str, Any] = {"value": None, "expires_at": None, "in_flight": None}
 
 _bus_cache_lock = Lock()
-_bus_cache = {"value": None, "expires_at": None}
+_bus_cache: dict[str, Any] = {"value": None, "expires_at": None, "in_flight": None}
 
 _air_cache_lock = Lock()
-_air_cache = {"value": None, "expires_at": None}
+_air_cache: dict[str, Any] = {"value": None, "expires_at": None, "in_flight": None}
 
 _mid_cache_lock = Lock()
-_mid_cache = {"value": None, "expires_at": None}
+_mid_cache: dict[str, Any] = {"value": None, "expires_at": None, "in_flight": None}
 
 CacheValue = TypeVar("CacheValue")
 
@@ -39,21 +41,38 @@ async def _get_cached_value(
     *,
     now: datetime,
     lock: Lock,
-    cache: dict[str, object | None],
+    cache: dict[str, Any],
     ttl: timedelta,
     fetcher: Callable[[], Awaitable[CacheValue]],
     force_reload: bool = False,
 ) -> CacheValue:
-    if not force_reload:
-        with lock:
-            cached_value = cache["value"]
-            expires_at = cache["expires_at"]
-            if cached_value is not None and isinstance(expires_at, datetime) and now < expires_at:
-                return cached_value  # type: ignore[return-value]
-
-    fresh_value = await fetcher()
+    in_flight: asyncio.Task[CacheValue] | None
 
     with lock:
+        cached_value = cache["value"]
+        expires_at = cache["expires_at"]
+        if not force_reload and cached_value is not None and isinstance(expires_at, datetime) and now < expires_at:
+            return cached_value  # type: ignore[return-value]
+
+        in_flight = cache.get("in_flight")
+        if in_flight is None:
+            in_flight = asyncio.create_task(fetcher())
+            cache["in_flight"] = in_flight
+
+    try:
+        fresh_value = await in_flight
+    except Exception:
+        with lock:
+            if cache.get("in_flight") is in_flight:
+                cache["in_flight"] = None
+            stale_value = cache.get("value")
+        if stale_value is not None:
+            return stale_value  # type: ignore[return-value]
+        raise
+
+    with lock:
+        if cache.get("in_flight") is in_flight:
+            cache["in_flight"] = None
         cache["value"] = fresh_value
         cache["expires_at"] = now + ttl
 
