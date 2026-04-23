@@ -3,6 +3,7 @@ from io import BytesIO
 from pathlib import Path
 import asyncio
 import json
+import logging
 import traceback
 from zoneinfo import ZoneInfo
 
@@ -31,6 +32,7 @@ STATIC_DIR = SERVICE_DIR / "static"
 TEMPLATES_DIR = STATIC_DIR / "templates"
 KINDLE_IMAGE_RENDER_RETRY_COUNT = 3
 KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS = 1.0
+logger = logging.getLogger('uvicorn')
 
 app = FastAPI()
 
@@ -224,6 +226,19 @@ async def _notify_page_render_error(page_name: str, request: Request, exc: Excep
         pass
 
 
+def _log_page_render_error(page_name: str, request: Request, exc: Exception) -> None:
+    client_host = request.client.host if request.client else "-"
+    user_agent = request.headers.get("user-agent", "-")
+    logger.error(
+        "Failed to render %s path=%s client=%s user_agent=%s",
+        page_name,
+        request.url.path,
+        client_host,
+        user_agent,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -255,7 +270,7 @@ async def get_home(request: Request, accessKey: str | None = None):
             },
         )
     except Exception as exc:
-        await _notify_page_render_error("/home", request, exc)
+        _log_page_render_error("/home", request, exc)
         raise
 
 
@@ -289,7 +304,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
             },
         )
     except Exception as exc:
-        await _notify_page_render_error("/kindle", request, exc)
+        _log_page_render_error("/kindle", request, exc)
         raise
 
 
@@ -298,14 +313,14 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
     try:
-        from playwright.async_api import async_playwright
-    except ImportError as exc:
-        raise HTTPException(status_code=500, detail="playwright is not installed") from exc
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            raise HTTPException(status_code=500, detail="playwright is not installed") from exc
 
-    target_url = str(request.url_for("get_kindle_home"))
-    target_url = f"{target_url}?accessKey={accessKey}"
+        target_url = str(request.url_for("get_kindle_home"))
+        target_url = f"{target_url}?accessKey={accessKey}"
 
-    try:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             try:
@@ -314,14 +329,17 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                     device_scale_factor=1,
                 )
                 last_status_code = None
+                page_loaded = False
                 for attempt in range(1, KINDLE_IMAGE_RENDER_RETRY_COUNT + 1):
                     page_response = await page.goto(target_url, wait_until="networkidle")
                     last_status_code = page_response.status if page_response is not None else None
                     if page_response is not None and page_response.ok:
+                        page_loaded = True
                         break
                     if attempt < KINDLE_IMAGE_RENDER_RETRY_COUNT:
                         await asyncio.sleep(KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS)
-                else:
+
+                if not page_loaded:
                     status_description = (
                         str(last_status_code) if last_status_code is not None else "no response"
                     )
@@ -334,9 +352,11 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                 image_bytes = _convert_png_to_8bit_grayscale(image_bytes)
             finally:
                 await browser.close()
-    except HTTPException:
+    except HTTPException as exc:
+        await _notify_page_render_error("/kindle-image", request, exc)
         raise
     except Exception as exc:
+        await _notify_page_render_error("/kindle-image", request, exc)
         raise HTTPException(status_code=500, detail=f"failed to capture kindle image: {exc}") from exc
 
     return Response(content=image_bytes, media_type="image/png")
