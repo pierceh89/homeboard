@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+import asyncio
+import json
+import logging
+import traceback
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -16,17 +20,19 @@ from app.cache_layer import (
     get_mid_forecast_cached,
     get_weather_cached,
 )
+from app.discord import send_discord
 from app.mid_forecast import MidForecastResponse
 from app.settings import get_settings
 from app.weather import WeatherForecastSlot, WeatherResponse
 from app.naver_calendar import get_naver_today_events
 
-import json
-
 APP_DIR = Path(__file__).resolve().parent
 SERVICE_DIR = APP_DIR.parent
 STATIC_DIR = SERVICE_DIR / "static"
 TEMPLATES_DIR = STATIC_DIR / "templates"
+KINDLE_IMAGE_RENDER_RETRY_COUNT = 3
+KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS = 1.0
+logger = logging.getLogger('uvicorn')
 
 app = FastAPI()
 
@@ -189,6 +195,50 @@ def _require_access_key(access_key: str | None):
         raise HTTPException(status_code=404, detail="Not Found")
 
 
+def _build_page_error_log(page_name: str, request: Request, exc: Exception) -> str:
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S %Z")
+    client_host = request.client.host if request.client else "-"
+    user_agent = request.headers.get("user-agent", "-")
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    prefix = (
+        "[Homeboard Render Error]\n"
+        f"time: {now}\n"
+        f"page: {page_name}\n"
+        f"path: {request.url.path}\n"
+        f"client: {client_host}\n"
+        f"user-agent: {user_agent}\n"
+        f"error: {type(exc).__name__}: {exc}\n"
+        "traceback:\n```"
+    )
+    suffix = "```"
+    max_trace_length = 2000 - len(prefix) - len(suffix)
+    if max_trace_length < 0:
+        return prefix[:1997] + "..."
+    if len(trace) > max_trace_length:
+        trace = "..." + trace[-max(0, max_trace_length - 3) :]
+    return f"{prefix}{trace}{suffix}"
+
+
+async def _notify_page_render_error(page_name: str, request: Request, exc: Exception) -> None:
+    try:
+        await send_discord(_build_page_error_log(page_name, request, exc), username="Homeboard")
+    except Exception:
+        pass
+
+
+def _log_page_render_error(page_name: str, request: Request, exc: Exception) -> None:
+    client_host = request.client.host if request.client else "-"
+    user_agent = request.headers.get("user-agent", "-")
+    logger.error(
+        "Failed to render %s path=%s client=%s user_agent=%s",
+        page_name,
+        request.url.path,
+        client_host,
+        user_agent,
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+
+
 @app.get("/")
 def read_root():
     return {}
@@ -198,56 +248,64 @@ def read_root():
 async def get_home(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
-    now = datetime.now(KST)
-    weather = await get_weather_cached(now)
-    bus_stops = await get_bus_arrivals_cached(now)
-    air = await get_air_condition_cached(now)
-    mid = await get_mid_forecast_cached(now)
-    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
-    weekly_outlook = _build_weekly_outlook(now, weather, mid)
-    now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
-    return templates.TemplateResponse(
-        request=request,
-        name="home.html",
-        context={
-            "bus_stops": bus_stops,
-            "weather": weather,
-            "air": air,
-            "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
-            "weekly_outlook": weekly_outlook,
-            "now_label": now_label,
-        },
-    )
+    try:
+        now = datetime.now(KST)
+        weather = await get_weather_cached(now)
+        bus_stops = await get_bus_arrivals_cached(now)
+        air = await get_air_condition_cached(now)
+        mid = await get_mid_forecast_cached(now)
+        hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+        weekly_outlook = _build_weekly_outlook(now, weather, mid)
+        now_label = f"({WEEKDAY_KO[now.weekday()]}요일) {now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} {now.strftime('%I:%M').lstrip('0')}"
+        return templates.TemplateResponse(
+            request=request,
+            name="home.html",
+            context={
+                "bus_stops": bus_stops,
+                "weather": weather,
+                "air": air,
+                "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+                "weekly_outlook": weekly_outlook,
+                "now_label": now_label,
+            },
+        )
+    except Exception as exc:
+        _log_page_render_error("/home", request, exc)
+        raise
 
 
 @app.get("/kindle")
 async def get_kindle_home(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
-    now = datetime.now(KST)
-    weather = await get_weather_cached(now)
-    air = await get_air_condition_cached(now)
-    mid = await get_mid_forecast_cached(now)
-    hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
-    weekly_outlook = _build_weekly_outlook(now, weather, mid)
-    date_label = f"{now.strftime('%m.%d')}"
-    now_label = (
-        f"({WEEKDAY_KO[now.weekday()]}요일) "
-        f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
-        f"{now.strftime('%I:%M').lstrip('0')}"
-    )
-    return templates.TemplateResponse(
-        request=request,
-        name="kindle_home.html",
-        context={
-            "weather": weather,
-            "air": air,
-            "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
-            "weekly_outlook": weekly_outlook,
-            "now_label": now_label,
-            "date_label": date_label,
-        },
-    )
+    try:
+        now = datetime.now(KST)
+        weather = await get_weather_cached(now)
+        air = await get_air_condition_cached(now)
+        mid = await get_mid_forecast_cached(now)
+        hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
+        weekly_outlook = _build_weekly_outlook(now, weather, mid)
+        date_label = f"{now.strftime('%m.%d')}"
+        now_label = (
+            f"({WEEKDAY_KO[now.weekday()]}요일) "
+            f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
+            f"{now.strftime('%I:%M').lstrip('0')}"
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="kindle_home.html",
+            context={
+                "weather": weather,
+                "air": air,
+                "hourly_series": json.dumps(hourly_series, ensure_ascii=False),
+                "weekly_outlook": weekly_outlook,
+                "now_label": now_label,
+                "date_label": date_label,
+            },
+        )
+    except Exception as exc:
+        _log_page_render_error("/kindle", request, exc)
+        raise
 
 
 @app.get("/kindle-image")
@@ -255,14 +313,14 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
     _require_access_key(accessKey)
 
     try:
-        from playwright.async_api import async_playwright
-    except ImportError as exc:
-        raise HTTPException(status_code=500, detail="playwright is not installed") from exc
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            raise HTTPException(status_code=500, detail="playwright is not installed") from exc
 
-    target_url = str(request.url_for("get_kindle_home"))
-    target_url = f"{target_url}?accessKey={accessKey}"
+        target_url = str(request.url_for("get_kindle_home"))
+        target_url = f"{target_url}?accessKey={accessKey}"
 
-    try:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             try:
@@ -270,12 +328,35 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                     viewport={"width": 600, "height": 800},
                     device_scale_factor=1,
                 )
-                await page.goto(target_url, wait_until="networkidle")
+                last_status_code = None
+                page_loaded = False
+                for attempt in range(1, KINDLE_IMAGE_RENDER_RETRY_COUNT + 1):
+                    page_response = await page.goto(target_url, wait_until="networkidle")
+                    last_status_code = page_response.status if page_response is not None else None
+                    if page_response is not None and page_response.ok:
+                        page_loaded = True
+                        break
+                    if attempt < KINDLE_IMAGE_RENDER_RETRY_COUNT:
+                        await asyncio.sleep(KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS)
+
+                if not page_loaded:
+                    status_description = (
+                        str(last_status_code) if last_status_code is not None else "no response"
+                    )
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"failed to load kindle page for image render: {status_description}",
+                    )
+
                 image_bytes = await page.screenshot(type="png", full_page=False)
                 image_bytes = _convert_png_to_8bit_grayscale(image_bytes)
             finally:
                 await browser.close()
+    except HTTPException as exc:
+        await _notify_page_render_error("/kindle-image", request, exc)
+        raise
     except Exception as exc:
+        await _notify_page_render_error("/kindle-image", request, exc)
         raise HTTPException(status_code=500, detail=f"failed to capture kindle image: {exc}") from exc
 
     return Response(content=image_bytes, media_type="image/png")
@@ -358,4 +439,3 @@ async def get_bus_arrivals_api(
 
     now = datetime.now(KST)
     return await get_bus_arrivals_cached(now, force_reload=force_reload)
-

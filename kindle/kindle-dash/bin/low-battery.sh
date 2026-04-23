@@ -15,9 +15,12 @@ if [ "$previous_report_timestamp" -eq -1 ] ||
   echo "$now" >"$last_battery_report_state"
   MESSAGE="[KINDLE] Reporting low battery: ${battery_level_percentage}%"
   if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-    curl -H "Content-Type: application/json" \
+    if ! curl --fail --silent --show-error --max-time 10 \
+      -H "Content-Type: application/json" \
       -d "$(printf '{"content": "%s"}' "$MESSAGE")" \
-      "$DISCORD_WEBHOOK_URL"
+      "$DISCORD_WEBHOOK_URL"; then
+      echo "[$(date -u)] Failed to send low battery notification to Discord webhook"
+    fi
   else
     echo "[$(date -u)] DISCORD_WEBHOOK_URL is not set; skipping low battery notification"
   fi
