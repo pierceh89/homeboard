@@ -317,17 +317,25 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                 for attempt in range(1, KINDLE_IMAGE_RENDER_RETRY_COUNT + 1):
                     page_response = await page.goto(target_url, wait_until="networkidle")
                     last_status_code = page_response.status if page_response is not None else None
-                    if last_status_code == 200:
+                    if page_response is not None and page_response.ok:
                         break
                     if attempt < KINDLE_IMAGE_RENDER_RETRY_COUNT:
                         await asyncio.sleep(KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS)
                 else:
-                    raise RuntimeError(f"target page returned status code {last_status_code}")
+                    status_description = (
+                        str(last_status_code) if last_status_code is not None else "no response"
+                    )
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"failed to load kindle page for image render: {status_description}",
+                    )
 
                 image_bytes = await page.screenshot(type="png", full_page=False)
                 image_bytes = _convert_png_to_8bit_grayscale(image_bytes)
             finally:
                 await browser.close()
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to capture kindle image: {exc}") from exc
 
