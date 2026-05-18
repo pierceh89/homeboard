@@ -1,0 +1,5 @@
+# fill your own settings
+export DISCORD_WEBHOOK_URL=
+export LOW_BATTERY_THRESHOLD_PERCENT=20
+export LOW_BATTERY_REPORTING=true
+export WIFI_TEST_IP=1.1.1.1

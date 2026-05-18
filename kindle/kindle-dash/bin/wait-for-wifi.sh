@@ -10,6 +10,7 @@ wait_for_wifi() {
   max_retry=30
   counter=0
 
+  echo "Ping ${test_ip}..."
   ping -c 1 "$test_ip" >/dev/null 2>&1
 
   # shellcheck disable=SC2181
