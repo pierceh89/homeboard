@@ -4,8 +4,8 @@ import traceback
 
 from fastapi import Request
 
-from app.constants import KST
-from app.discord import send_discord
+from app.core.constants import KST
+from app.integrations.discord import send_discord
 
 
 logger = logging.getLogger("uvicorn")

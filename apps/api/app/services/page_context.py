@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 import logging
 
-from app.constants import KST, WEEKDAY_KO
-from app.mid_forecast import MidForecastResponse
-from app.naver_calendar import get_naver_today_events
-from app.settings import get_settings
-from app.weather import WeatherForecastSlot, WeatherResponse
+from app.core.constants import KST, WEEKDAY_KO
+from app.integrations.mid_forecast import MidForecastResponse
+from app.integrations.naver_calendar import get_naver_today_events
+from app.core.settings import get_settings
+from app.integrations.weather import WeatherForecastSlot, WeatherResponse
 
 
 logger = logging.getLogger("uvicorn")

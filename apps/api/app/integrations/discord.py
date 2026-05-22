@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from app.settings import get_settings
+from app.core.settings import get_settings
 
 DISCORD_MESSAGE_LIMIT = 2000
 

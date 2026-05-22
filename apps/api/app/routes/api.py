@@ -3,20 +3,20 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from app.air import AirConditionResponse
-from app.api import BusArrivalStop
-from app.auth import require_access_key
-from app.cache_layer import (
+from app.integrations.air import AirConditionResponse
+from app.integrations.bus import BusArrivalStop
+from app.core.auth import require_access_key
+from app.services.cache_layer import (
     get_air_condition_cached,
     get_bus_arrivals_cached,
     get_mid_forecast_cached,
     get_weather_cached,
 )
-from app.constants import KST
-from app.mid_forecast import MidForecastResponse
-from app.naver_calendar import get_naver_today_events
-from app.settings import get_settings
-from app.weather import WeatherResponse
+from app.core.constants import KST
+from app.integrations.mid_forecast import MidForecastResponse
+from app.integrations.naver_calendar import get_naver_today_events
+from app.core.settings import get_settings
+from app.integrations.weather import WeatherResponse
 
 
 router = APIRouter()

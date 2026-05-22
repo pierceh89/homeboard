@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 import unittest
 
-from app.page_context import build_kindle_calendar_context
+from app.services.page_context import build_kindle_calendar_context
 
 
 KST = ZoneInfo("Asia/Seoul")

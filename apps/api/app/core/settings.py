@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
 
 APP_DIR = Path(__file__).resolve().parent
-SERVICE_DIR = APP_DIR.parent
+SERVICE_DIR = APP_DIR.parents[1]
 
 
 class AirConditionRequest(BaseModel):

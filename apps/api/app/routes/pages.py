@@ -6,17 +6,17 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.templating import Jinja2Templates
 
-from app.auth import require_access_key
-from app.cache_layer import (
+from app.core.auth import require_access_key
+from app.services.cache_layer import (
     get_air_condition_cached,
     get_bus_arrivals_cached,
     get_mid_forecast_cached,
     get_weather_cached,
 )
-from app.constants import KST, WEEKDAY_KO
-from app.error_reporting import log_page_render_error, notify_page_render_error
-from app.image_utils import convert_png_to_8bit_grayscale
-from app.page_context import (
+from app.core.constants import KST, WEEKDAY_KO
+from app.core.error_reporting import log_page_render_error, notify_page_render_error
+from app.core.image_utils import convert_png_to_8bit_grayscale
+from app.services.page_context import (
     build_hourly_series,
     build_weekly_outlook,
     get_kindle_calendar_context,
