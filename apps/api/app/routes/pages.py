@@ -27,6 +27,7 @@ SERVICE_DIR = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = SERVICE_DIR / "static" / "templates"
 KINDLE_IMAGE_RENDER_RETRY_COUNT = 3
 KINDLE_IMAGE_RENDER_RETRY_DELAY_SECONDS = 1.0
+KINDLE_IMAGE_RENDER_SETTLE_SECONDS = 0.5
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -121,7 +122,7 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                 last_status_code = None
                 page_loaded = False
                 for attempt in range(1, KINDLE_IMAGE_RENDER_RETRY_COUNT + 1):
-                    page_response = await page.goto(target_url, wait_until="networkidle")
+                    page_response = await page.goto(target_url, wait_until="load")
                     last_status_code = page_response.status if page_response is not None else None
                     if page_response is not None and page_response.ok:
                         page_loaded = True
@@ -138,6 +139,7 @@ async def get_kindle_home_image(request: Request, accessKey: str | None = None):
                         detail=f"failed to load kindle page for image render: {status_description}",
                     )
 
+                await asyncio.sleep(KINDLE_IMAGE_RENDER_SETTLE_SECONDS)
                 image_bytes = await page.screenshot(type="png", full_page=False)
                 image_bytes = convert_png_to_8bit_grayscale(image_bytes)
             finally:
