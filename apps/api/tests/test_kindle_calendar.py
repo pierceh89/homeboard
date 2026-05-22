@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 import unittest
 
-from app.main import _build_kindle_calendar_context
+from app.page_context import build_kindle_calendar_context
 
 
 KST = ZoneInfo("Asia/Seoul")
@@ -29,7 +29,7 @@ class KindleCalendarContextTest(unittest.TestCase):
             ),
         ]
 
-        context = _build_kindle_calendar_context(now, events=events)
+        context = build_kindle_calendar_context(now, events=events)
 
         self.assertEqual(context["calendar_date_label"], "5. 22. (금)")
         self.assertFalse(context["calendar_error"])
@@ -44,7 +44,7 @@ class KindleCalendarContextTest(unittest.TestCase):
     def test_builds_empty_context_when_no_events_exist(self):
         now = datetime(2026, 5, 22, 9, 30, tzinfo=KST)
 
-        context = _build_kindle_calendar_context(now, events=[])
+        context = build_kindle_calendar_context(now, events=[])
 
         self.assertEqual(context["calendar_schedules"], [])
         self.assertFalse(context["calendar_error"])
@@ -52,7 +52,7 @@ class KindleCalendarContextTest(unittest.TestCase):
     def test_builds_error_context_when_fetch_failed(self):
         now = datetime(2026, 5, 22, 9, 30, tzinfo=KST)
 
-        context = _build_kindle_calendar_context(now, events=None, error=True)
+        context = build_kindle_calendar_context(now, events=None, error=True)
 
         self.assertEqual(context["calendar_date_label"], "일정 오류")
         self.assertEqual(context["calendar_schedules"], [])
