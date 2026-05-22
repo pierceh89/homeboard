@@ -213,17 +213,30 @@
                 오늘 일정
               </h2>
               <p
-                id="calendar-date"
                 class="text-[clamp(0.78rem,2.7vw,0.92rem)] text-slate-500 font-medium"
               >
-                불러오는 중...
+                {{ calendar_date_label }}
               </p>
             </header>
             <div
-              id="calendar-list"
               class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]"
             >
-              <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
+              {% if calendar_error %}
+              <p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>
+              {% elif calendar_schedules %}
+              {% for event in calendar_schedules %}
+              <div
+                class="rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-3 py-2 sm:px-4 sm:py-2"
+              >
+                <p class="font-semibold text-slate-800 leading-snug">
+                  {{ event.summary }}
+                </p>
+                <p class="mt-1 text-slate-500">{{ event.time_label }}</p>
+              </div>
+              {% endfor %}
+              {% else %}
+              <p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>
+              {% endif %}
             </div>
           </article>
         </section>
@@ -234,8 +247,6 @@
         const chartBox = document.querySelector("[data-hourly]");
         const svg = document.getElementById("weather-chart");
         const axis = document.getElementById("weather-axis");
-        const calendarDate = document.getElementById("calendar-date");
-        const calendarList = document.getElementById("calendar-list");
         if (!chartBox || !svg || !axis) return;
 
         const rows = JSON.parse(chartBox.dataset.hourly || "[]");
@@ -320,73 +331,7 @@
           axis.innerHTML = row_label_list.join("");
         }
 
-        function formatEventTime(event) {
-          if (event.is_all_day) return "하루 종일";
-          const start = new Date(event.start);
-          const end = new Date(event.end);
-          const formatter = new Intl.DateTimeFormat("ko-KR", {
-            hour: "numeric",
-            minute: "2-digit",
-          });
-          return `${formatter.format(start)} - ${formatter.format(end)}`;
-        }
-
-        function renderCalendarItems(items) {
-          if (!calendarList) return;
-          if (!items || items.length === 0) {
-            calendarList.innerHTML =
-              '<p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>';
-            return;
-          }
-
-          calendarList.innerHTML = items
-            .map((event) => {
-              const title = (event.summary || "").trim() || "제목 없는 일정";
-              const timeText = formatEventTime(event);
-              return `
-                <div class="rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-3 py-2 sm:px-4 sm:py-2">
-                  <p class="font-semibold text-slate-800 leading-snug">${title}</p>
-                  <p class="mt-1 text-slate-500">${timeText}</p>
-                </div>
-              `;
-            })
-            .join("");
-        }
-
-        async function loadCalendar() {
-          if (!calendarList || !calendarDate) return;
-          try {
-            const query = window.location.search || "";
-            const res = await fetch(`/api/calendar/naver/today${query}`);
-            if (!res.ok) {
-              throw new Error(`status:${res.status}`);
-            }
-
-            const data = await res.json();
-            const targetDate = data?.date;
-            if (targetDate) {
-              const parsedDate = new Date(`${targetDate}T00:00:00+09:00`);
-              const label = new Intl.DateTimeFormat("ko-KR", {
-                month: "numeric",
-                day: "numeric",
-                weekday: "short",
-              }).format(parsedDate);
-              calendarDate.textContent = label;
-            } else {
-              calendarDate.textContent = "오늘";
-            }
-            renderCalendarItems(
-              Array.isArray(data?.schedules) ? data.schedules : [],
-            );
-          } catch (_error) {
-            calendarDate.textContent = "일정 오류";
-            calendarList.innerHTML =
-              '<p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>';
-          }
-        }
-
         render("temp");
-        loadCalendar();
       })();
     </script>
   </body>

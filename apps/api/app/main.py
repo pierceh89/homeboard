@@ -190,6 +190,72 @@ def _build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForec
     return weekly
 
 
+def _format_kindle_calendar_time(dt_value: datetime) -> str:
+    local_dt = dt_value.astimezone(KST)
+    meridiem = "오전" if local_dt.hour < 12 else "오후"
+    hour = local_dt.hour % 12 or 12
+    return f"{meridiem} {hour}:{local_dt.minute:02d}"
+
+
+def _build_kindle_calendar_context(
+    now: datetime,
+    *,
+    events: list | None,
+    error: bool = False,
+) -> dict:
+    if error:
+        return {
+            "calendar_date_label": "일정 오류",
+            "calendar_schedules": [],
+            "calendar_error": True,
+        }
+
+    local_now = now.astimezone(KST)
+    date_label = f"{local_now.month}. {local_now.day}. ({WEEKDAY_KO[local_now.weekday()]})"
+    schedules = []
+    for event in events or []:
+        summary = (event.summary or "").strip() or "제목 없는 일정"
+        if event.is_all_day:
+            time_label = "하루 종일"
+        else:
+            time_label = (
+                f"{_format_kindle_calendar_time(event.start)} - "
+                f"{_format_kindle_calendar_time(event.end)}"
+            )
+        schedules.append(
+            {
+                "summary": summary,
+                "time_label": time_label,
+            }
+        )
+
+    return {
+        "calendar_date_label": date_label,
+        "calendar_schedules": schedules,
+        "calendar_error": False,
+    }
+
+
+def _get_kindle_calendar_context(now: datetime) -> dict:
+    if not settings.naver_caldav_username or not settings.naver_caldav_password:
+        return _build_kindle_calendar_context(now, events=None, error=True)
+
+    try:
+        events = get_naver_today_events(
+            caldav_url=settings.naver_caldav_url,
+            username=settings.naver_caldav_username,
+            password=settings.naver_caldav_password,
+            calendar_name=settings.naver_caldav_calendar_name or None,
+            timezone=KST,
+            now=now,
+        )
+    except Exception:
+        logger.warning("Failed to fetch NAVER Calendar events for /kindle", exc_info=True)
+        return _build_kindle_calendar_context(now, events=None, error=True)
+
+    return _build_kindle_calendar_context(now, events=events)
+
+
 def _require_access_key(access_key: str | None):
     if settings.access_key != "" and access_key != settings.access_key:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -285,6 +351,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
         mid = await get_mid_forecast_cached(now)
         hourly_series = _build_hourly_series(weather.forecasts, max_items=24)
         weekly_outlook = _build_weekly_outlook(now, weather, mid)
+        calendar_context = _get_kindle_calendar_context(now)
         date_label = f"{now.strftime('%m.%d')}"
         now_label = (
             f"({WEEKDAY_KO[now.weekday()]}요일) "
@@ -301,6 +368,7 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
                 "weekly_outlook": weekly_outlook,
                 "now_label": now_label,
                 "date_label": date_label,
+                **calendar_context,
             },
         )
     except Exception as exc:
