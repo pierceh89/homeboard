@@ -19,11 +19,11 @@
         --eink-fill-light: rgba(17, 17, 17, 0.08);
       }
       .stage {
-        width: min(96vw, 1500px);
+        width: 96vw;
       }
       .weather-card {
         background: var(--eink-surface);
-        border: 2px solid var(--eink-border);
+        border: 0;
         box-shadow: none;
       }
       .chart-wrap {
@@ -32,7 +32,6 @@
       }
       .weekly-strip {
         background: var(--eink-surface-muted);
-        border: 2px solid var(--eink-border);
       }
       .calendar-card {
         border: 2px solid var(--eink-border);
@@ -76,121 +75,140 @@
         class="weather-card rounded-2xl p-2 text-slate-800 grid grid-rows-[auto_auto_1fr] gap-2 shadow-sm sm:p-2 lg:p-2"
       >
         <header
-          class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start lg:gap-4"
+          class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start border-b-2 border-[#1f1f1f] pb-2 lg:gap-3"
         >
+          <div class="text-left">
+            <p
+              class="text-[clamp(1.25rem,4.9vw,2rem)] font-extrabold leading-tight"
+            >
+              {{date_label}}
+            </p>
+            <p
+              class="text-[clamp(1rem,3.9vw,1.42rem)] text-slate-500 font-extrabold"
+            >
+              {{ now_label }}
+            </p>
+          </div>
           <div class="flex items-start gap-3 sm:gap-4">
-            <!-- <div class="sun mt-1"></div> -->
-            <!-- <div class="w-[58px] h-[58px] mt-1">
-              <svg viewBox="0 0 64 64" class="w-full h-full" aria-hidden="true">
-                <defs>
-                  <linearGradient id="moonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#8ec5ff" />
-                    <stop offset="100%" stop-color="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                <circle cx="30" cy="34" r="24" fill="url(#moonGrad)" />
-                <circle cx="42" cy="26" r="24" fill="#f8fbff" />
-              </svg>
-            </div> -->
-            <div class="flex items-start gap-3 sm:gap-4">
-              <div
-                class="text-[clamp(2.2rem,8vw,3.4rem)] leading-none font-semibold"
-              >
-                {{ weather.current.temp_c | round(0) | int if weather.current
-                and weather.current.temp_c is not none else '-' }}
-              </div>
-              <div class="pt-1">
-                <p
-                  class="text-slate-700 text-[clamp(1rem,3.8vw,1.3rem)] font-semibold whitespace-nowrap"
-                >
-                  °C
-                </p>
-              </div>
+            <div
+              class="text-[clamp(2.55rem,9.2vw,4.15rem)] leading-none font-bold tracking-tight"
+            >
+              {{ weather.current.temp_c | round(0) | int if weather.current and
+              weather.current.temp_c is not none else '-' }}
             </div>
-          </div>
-          <div class="text-right">
-            <p
-              class="text-[clamp(1.15rem,4.8vw,2rem)] font-semibold leading-tight"
+            <div
+              class="kindle-current-condition flex items-baseline gap-1 pt-1 leading-none"
             >
-              {{ weather.region }}
-            </p>
-            <p
-              class="text-[clamp(1.1rem,4.2vw,1.5rem)] text-slate-500 font-bold"
-            >
-              {{date_label}} {{ now_label }}
-            </p>
-            <p
-              class="text-[clamp(0.9rem,3.3vw,1.25rem)] text-slate-700 font-semibold"
-            >
-              {{ weather.current.sky_text if weather.current and
-              weather.current.sky_text else '정보없음' }}
-            </p>
-          </div>
-          <div
-            class="col-span-2 mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-[clamp(0.85rem,3.1vw,1.1rem)] opacity-90 leading-5 lg:mt-1"
-          >
-            <span>
-              강수확률: {{ weather.current.rain_prob_pct if weather.current and
-              weather.current.rain_prob_pct is not none else '-' }}%
-            </span>
-            <span>
-              미세먼지 {{ air.current.pm10_value if air.current and
-              air.current.pm10_value is not none else '-' }}㎍/㎥ ({{
-              air.current.pm10_grade_label if air.current and
-              air.current.pm10_grade_label else '정보없음' }})
-            </span>
-            <span>
-              습도: {{ weather.current.humidity_pct if weather.current and
-              weather.current.humidity_pct is not none else '-' }}%
-            </span>
-            <span>
-              초미세먼지 {{ air.current.pm25_value if air.current and
-              air.current.pm25_value is not none else '-' }}㎍/㎥ ({{
-              air.current.pm25_grade_label if air.current and
-              air.current.pm25_grade_label else '정보없음' }})
-            </span>
-            <span>
-              풍속: {{ weather.current.wind_speed_ms if weather.current and
-              weather.current.wind_speed_ms is not none else '-' }}m/s
-            </span>
+              <p
+                class="self-start pt-0.5 text-slate-800 text-[clamp(1rem,3.8vw,1.28rem)] font-bold whitespace-nowrap"
+              >
+                °C
+              </p>
+              <p
+                class="text-slate-800 text-[clamp(2.55rem,9.2vw,4.15rem)] font-bold tracking-tight whitespace-nowrap"
+              >
+                {{ weather.current.sky_text if weather.current and
+                weather.current.sky_text else '정보없음' }}
+              </p>
+            </div>
           </div>
         </header>
 
         <section
-          class="chart-wrap rounded-xl px-1 py-1 sm:px-2 sm:py-2"
+          class="kindle-metrics grid grid-cols-5 border-y-2 border-[#1f1f1f] bg-[#f7f7f7] text-[clamp(0.67rem,2.35vw,0.85rem)] leading-tight"
+        >
+          <div class="border-r border-[#6b6b6b] px-1.5 py-1.5">
+            <p class="font-semibold text-slate-500">강수</p>
+            <p
+              class="kindle-metric-value mt-1 text-[clamp(0.92rem,3vw,1.18rem)] font-extrabold text-slate-800"
+            >
+              {{ weather.current.rain_prob_pct if weather.current and
+              weather.current.rain_prob_pct is not none else '-' }}%
+            </p>
+          </div>
+          <div class="border-r border-[#6b6b6b] px-1.5 py-1.5">
+            <p class="font-semibold text-slate-500">습도</p>
+            <p
+              class="kindle-metric-value mt-1 text-[clamp(0.92rem,3vw,1.18rem)] font-extrabold text-slate-800"
+            >
+              {{ weather.current.humidity_pct if weather.current and
+              weather.current.humidity_pct is not none else '-' }}%
+            </p>
+          </div>
+          <div class="border-r border-[#6b6b6b] px-1.5 py-1.5">
+            <p class="font-semibold text-slate-500">풍속</p>
+            <p
+              class="kindle-metric-value mt-1 text-[clamp(0.92rem,3vw,1.18rem)] font-extrabold text-slate-800"
+            >
+              {{ weather.current.wind_speed_ms if weather.current and
+              weather.current.wind_speed_ms is not none else '-' }}m/s
+            </p>
+          </div>
+          <div class="border-r border-[#6b6b6b] px-1.5 py-1.5">
+            <p class="font-semibold text-slate-500">미세</p>
+            <p
+              class="kindle-metric-value mt-1 text-[clamp(0.92rem,3vw,1.18rem)] font-extrabold text-slate-800"
+            >
+              {{ air.current.pm10_value if air.current and
+              air.current.pm10_value is not none else '-' }} {{
+              air.current.pm10_grade_label if air.current and
+              air.current.pm10_grade_label else '정보없음' }}
+            </p>
+          </div>
+          <div class="px-1.5 py-1.5">
+            <p class="font-semibold text-slate-500">초미세</p>
+            <p
+              class="kindle-metric-value mt-1 text-[clamp(0.92rem,3vw,1.18rem)] font-extrabold text-slate-800"
+            >
+              {{ air.current.pm25_value if air.current and
+              air.current.pm25_value is not none else '-' }} {{
+              air.current.pm25_grade_label if air.current and
+              air.current.pm25_grade_label else '정보없음' }}
+            </p>
+          </div>
+        </section>
+
+        <section
+          class="chart-wrap rounded-none px-1 py-1 sm:px-2 sm:py-1"
           data-hourly="{{ hourly_series }}"
         >
           <svg
             id="weather-chart"
             viewBox="0 0 1000 160"
-            class="w-full h-40 min-h-[160px] sm:h-40"
+            preserveAspectRatio="none"
+            class="w-full h-[160px] min-h-[118px] sm:h-[160px]"
           ></svg>
           <div
             id="weather-axis"
-            class="mt-1 grid gap-1 text-[clamp(0.66rem,2.5vw,1rem)] text-slate-500"
+            class="grid gap-1 text-[clamp(0.66rem,2.5vw,1rem)] text-slate-500"
           ></div>
         </section>
 
         <section
-          class="weekly-strip mx-auto w-full rounded-xl px-2.5 py-2.5 sm:px-2.5 sm:py-2.5"
+          class="kindle-weekly-strip weekly-strip mx-auto w-full overflow-hidden border-y-2 border-[#1f1f1f] px-0 py-0"
         >
-          <div class="grid grid-cols-8 gap-1">
+          <div class="grid grid-cols-8 gap-0">
             {% for day in weekly_outlook %}
             <article
-              class="w-full rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-1.5 py-1.5 text-center"
+              class="w-full border-r border-[#6b6b6b] bg-[#f7f7f7] px-1 py-1.5 text-center last:border-r-0"
             >
               <p
-                class="text-[clamp(0.7rem,2.1vw,0.95rem)] font-semibold leading-tight text-slate-700"
+                class="text-[clamp(0.9rem,2.1vw,0.95rem)] font-semibold leading-tight text-slate-700"
+              >
+                {{ day.date }}
+              </p>
+              <p
+                class="text-[clamp(0.8rem,2.1vw,0.95rem)] leading-tight text-slate-700"
               >
                 {{ day.weekday }}
               </p>
               <p
-                class="mt-1 text-[clamp(0.66rem,2vw,0.9rem)] leading-tight text-slate-500"
+                class="mt-1 text-[clamp(0.9rem,2vw,0.9rem)] font-extrabold leading-tight text-slate-500"
               >
                 {{ day.sky_text }}
               </p>
               <p
-                class="mt-1 whitespace-nowrap text-[clamp(0.62rem,1.85vw,0.86rem)] font-semibold tracking-tight text-slate-800"
+                class="mt-1 whitespace-nowrap text-[clamp(0.7rem,1.85vw,0.86rem)] font-semibold tracking-tight text-slate-800"
               >
                 {{ day.max_temp if day.max_temp is not none else '-' }}°/{{
                 day.min_temp if day.min_temp is not none else '-' }}°
@@ -202,10 +220,10 @@
       </section>
 
       <section
-        class="weather-card rounded-2xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
+        class="weather-card rounded-xl p-2 text-slate-800 shadow-sm sm:p-2 lg:p-2"
       >
         <section aria-label="오늘 일정">
-          <article class="calendar-card rounded-xl px-3 py-3 sm:px-4">
+          <article class="calendar-card rounded-lg px-3 py-3 sm:px-4">
             <header class="mb-2 flex items-center justify-between gap-2">
               <h2
                 class="text-[clamp(0.98rem,3.3vw,1.16rem)] font-semibold tracking-tight text-slate-800"
@@ -213,17 +231,27 @@
                 오늘 일정
               </h2>
               <p
-                id="calendar-date"
                 class="text-[clamp(0.78rem,2.7vw,0.92rem)] text-slate-500 font-medium"
               >
-                불러오는 중...
+                {{ calendar_date_label }}
               </p>
             </header>
-            <div
-              id="calendar-list"
-              class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]"
-            >
-              <p class="text-slate-500">일정 정보를 불러오는 중입니다.</p>
+            <div class="grid gap-2 text-[clamp(0.8rem,2.8vw,0.92rem)]">
+              {% if calendar_error %}
+              <p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>
+              {% elif calendar_schedules %} {% for event in calendar_schedules
+              %}
+              <div
+                class="rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-3 py-2 sm:px-4 sm:py-2"
+              >
+                <p class="font-semibold text-slate-800 leading-snug">
+                  {{ event.summary }}
+                </p>
+                <p class="mt-1 text-slate-500">{{ event.time_label }}</p>
+              </div>
+              {% endfor %} {% else %}
+              <p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>
+              {% endif %}
             </div>
           </article>
         </section>
@@ -234,8 +262,6 @@
         const chartBox = document.querySelector("[data-hourly]");
         const svg = document.getElementById("weather-chart");
         const axis = document.getElementById("weather-axis");
-        const calendarDate = document.getElementById("calendar-date");
-        const calendarList = document.getElementById("calendar-list");
         if (!chartBox || !svg || !axis) return;
 
         const rows = JSON.parse(chartBox.dataset.hourly || "[]");
@@ -273,10 +299,13 @@
           const max = Math.max(...fallback);
           const min = Math.min(...fallback);
           const spread = max - min || 1;
-          const width = 1000;
-          const top = 10;
-          const height = 150;
-          const base = top + height;
+          const chartHeight = 160;
+          const width = Math.ceil((Math.ceil(svg.clientWidth) || 1000) * 0.9);
+          svg.setAttribute("viewBox", `0 0 ${width} ${chartHeight}`);
+          const top = 34;
+          const bottom = 2;
+          const height = chartHeight - top - bottom;
+          const base = chartHeight - bottom;
           const maxLabels = 8;
 
           const rowSize = rows.length;
@@ -320,73 +349,14 @@
           axis.innerHTML = row_label_list.join("");
         }
 
-        function formatEventTime(event) {
-          if (event.is_all_day) return "하루 종일";
-          const start = new Date(event.start);
-          const end = new Date(event.end);
-          const formatter = new Intl.DateTimeFormat("ko-KR", {
-            hour: "numeric",
-            minute: "2-digit",
-          });
-          return `${formatter.format(start)} - ${formatter.format(end)}`;
-        }
-
-        function renderCalendarItems(items) {
-          if (!calendarList) return;
-          if (!items || items.length === 0) {
-            calendarList.innerHTML =
-              '<p class="text-slate-500">등록된 오늘 일정이 없습니다.</p>';
-            return;
-          }
-
-          calendarList.innerHTML = items
-            .map((event) => {
-              const title = (event.summary || "").trim() || "제목 없는 일정";
-              const timeText = formatEventTime(event);
-              return `
-                <div class="rounded-lg border border-[#6b6b6b] bg-[#f7f7f7] px-3 py-2 sm:px-4 sm:py-2">
-                  <p class="font-semibold text-slate-800 leading-snug">${title}</p>
-                  <p class="mt-1 text-slate-500">${timeText}</p>
-                </div>
-              `;
-            })
-            .join("");
-        }
-
-        async function loadCalendar() {
-          if (!calendarList || !calendarDate) return;
-          try {
-            const query = window.location.search || "";
-            const res = await fetch(`/api/calendar/naver/today${query}`);
-            if (!res.ok) {
-              throw new Error(`status:${res.status}`);
-            }
-
-            const data = await res.json();
-            const targetDate = data?.date;
-            if (targetDate) {
-              const parsedDate = new Date(`${targetDate}T00:00:00+09:00`);
-              const label = new Intl.DateTimeFormat("ko-KR", {
-                month: "numeric",
-                day: "numeric",
-                weekday: "short",
-              }).format(parsedDate);
-              calendarDate.textContent = label;
-            } else {
-              calendarDate.textContent = "오늘";
-            }
-            renderCalendarItems(
-              Array.isArray(data?.schedules) ? data.schedules : [],
-            );
-          } catch (_error) {
-            calendarDate.textContent = "일정 오류";
-            calendarList.innerHTML =
-              '<p class="text-slate-500">일정 정보를 가져오지 못했습니다.</p>';
-          }
-        }
-
         render("temp");
-        loadCalendar();
+
+        if ("ResizeObserver" in window) {
+          const observer = new ResizeObserver(() => render("temp"));
+          observer.observe(svg);
+        } else {
+          window.addEventListener("resize", () => render("temp"));
+        }
       })();
     </script>
   </body>
