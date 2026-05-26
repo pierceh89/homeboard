@@ -8,9 +8,9 @@ TEMPLATE = Path(__file__).resolve().parents[1] / "static" / "templates" / "kindl
 class KindleTemplateLayoutTest(unittest.TestCase):
     def test_current_sky_text_is_grouped_with_temperature(self):
         template = TEMPLATE.read_text()
-        temp_block_start = template.index('<div class="flex items-start gap-2 sm:gap-3">')
-        meta_block_start = template.index('{{ weather.region }}')
-        temp_block = template[temp_block_start:meta_block_start]
+        header_start = template.index("<header")
+        header_end = template.index("</header>", header_start)
+        temp_block = template[header_start:header_end]
         temp_size_class = "text-[clamp(2.55rem,9.2vw,4.15rem)]"
 
         self.assertIn("weather.current.sky_text", temp_block)
@@ -18,6 +18,17 @@ class KindleTemplateLayoutTest(unittest.TestCase):
         self.assertIn("items-baseline", temp_block)
         self.assertIn("self-start", temp_block)
         self.assertGreaterEqual(temp_block.count(temp_size_class), 2)
+
+    def test_header_separates_date_time_from_weather_condition(self):
+        template = TEMPLATE.read_text()
+        header_start = template.index("<header")
+        header_end = template.index("</header>", header_start)
+        header_block = template[header_start:header_end]
+
+        self.assertIn('class="text-left"', header_block)
+        self.assertIn("{{date_label}}", header_block)
+        self.assertIn("{{ now_label }}", header_block)
+        self.assertIn("kindle-current-condition", header_block)
 
     def test_weather_cards_do_not_draw_outer_border(self):
         template = TEMPLATE.read_text()

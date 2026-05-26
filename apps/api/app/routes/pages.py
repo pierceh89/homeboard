@@ -75,9 +75,11 @@ async def get_kindle_home(request: Request, accessKey: str | None = None):
         hourly_series = build_hourly_series(weather.forecasts, max_items=24)
         weekly_outlook = build_weekly_outlook(now, weather, mid)
         calendar_context = get_kindle_calendar_context(now)
-        date_label = f"{now.strftime('%m.%d')}"
-        now_label = (
+        date_label = (
+            f"{now.strftime('%m.%d')}"
             f"({WEEKDAY_KO[now.weekday()]}요일) "
+        )
+        now_label = (
             f"{now.strftime('%p').replace('AM', 'AM').replace('PM', 'PM')} "
             f"{now.strftime('%I:%M').lstrip('0')}"
         )

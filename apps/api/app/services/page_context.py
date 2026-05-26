@@ -67,7 +67,7 @@ def build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForeca
         dt_value = _slot_dt(slot)
         if dt_value is None:
             continue
-        date_key = dt_value.strftime("%Y-%m-%d")
+        date_key = dt_value.strftime("%m-%d")
         day = by_date.setdefault(
             date_key,
             {
@@ -94,7 +94,7 @@ def build_weekly_outlook(now: datetime, weather: WeatherResponse, mid: MidForeca
 
     for offset in range(0, 8):
         target_date = base_date + timedelta(days=offset)
-        date_key = target_date.strftime("%Y-%m-%d")
+        date_key = target_date.strftime("%m-%d")
         weekday = WEEKDAY_KO[target_date.weekday()]
 
         short = by_date.get(date_key)
